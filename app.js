@@ -1,5 +1,5 @@
 // Global variables
-let video, canvas, ctx;
+let video, canvas2d, canvas3d, ctx2d;
 let detector;
 let currentFilter = 'none';
 let scene, camera, renderer;
@@ -13,8 +13,9 @@ async function init() {
 
     // Get elements
     video = document.getElementById('video');
-    canvas = document.getElementById('canvas');
-    ctx = canvas.getContext('2d');
+    canvas2d = document.getElementById('canvas2d');
+    canvas3d = document.getElementById('canvas3d');
+    ctx2d = canvas2d.getContext('2d');
 
     // Setup camera
     try {
@@ -61,8 +62,10 @@ async function setupCamera() {
     return new Promise((resolve) => {
         video.onloadedmetadata = () => {
             video.play();
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
+            canvas2d.width = video.videoWidth;
+            canvas2d.height = video.videoHeight;
+            canvas3d.width = video.videoWidth;
+            canvas3d.height = video.videoHeight;
             resolve();
         };
     });
@@ -89,7 +92,7 @@ function setupThreeJS() {
     // Create camera
     camera = new THREE.PerspectiveCamera(
         75,
-        canvas.width / canvas.height,
+        canvas3d.width / canvas3d.height,
         0.1,
         1000
     );
@@ -97,10 +100,10 @@ function setupThreeJS() {
 
     // Create renderer
     renderer = new THREE.WebGLRenderer({
-        canvas: canvas,
+        canvas: canvas3d,
         alpha: true
     });
-    renderer.setSize(canvas.width, canvas.height);
+    renderer.setSize(canvas3d.width, canvas3d.height);
     renderer.setClearColor(0x000000, 0);
 
     // Add lighting
@@ -237,8 +240,8 @@ async function detectFaces() {
         flipHorizontal: false
     });
 
-    // Clear canvas
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // Clear 2D canvas
+    ctx2d.clearRect(0, 0, canvas2d.width, canvas2d.height);
 
     if (faces.length > 0) {
         const face = faces[0];
@@ -266,29 +269,29 @@ function drawFaceLandmarks(face) {
     const keypoints = face.keypoints;
 
     // Draw all keypoints
-    ctx.fillStyle = '#00ff00';
+    ctx2d.fillStyle = '#00ff00';
     keypoints.forEach(point => {
-        ctx.beginPath();
-        ctx.arc(point.x, point.y, 2, 0, 2 * Math.PI);
-        ctx.fill();
+        ctx2d.beginPath();
+        ctx2d.arc(point.x, point.y, 2, 0, 2 * Math.PI);
+        ctx2d.fill();
     });
 
     // Draw eye landmarks in different color
-    ctx.fillStyle = '#ff00ff';
+    ctx2d.fillStyle = '#ff00ff';
     [33, 133, 160, 159, 158, 157, 173, 263, 362, 385, 386, 387, 388, 466].forEach(index => {
         if (keypoints[index]) {
-            ctx.beginPath();
-            ctx.arc(keypoints[index].x, keypoints[index].y, 3, 0, 2 * Math.PI);
-            ctx.fill();
+            ctx2d.beginPath();
+            ctx2d.arc(keypoints[index].x, keypoints[index].y, 3, 0, 2 * Math.PI);
+            ctx2d.fill();
         }
     });
 
     // Draw nose tip in red
-    ctx.fillStyle = '#ff0000';
+    ctx2d.fillStyle = '#ff0000';
     if (keypoints[1]) {
-        ctx.beginPath();
-        ctx.arc(keypoints[1].x, keypoints[1].y, 4, 0, 2 * Math.PI);
-        ctx.fill();
+        ctx2d.beginPath();
+        ctx2d.arc(keypoints[1].x, keypoints[1].y, 4, 0, 2 * Math.PI);
+        ctx2d.fill();
     }
 }
 
@@ -310,8 +313,8 @@ function applyFilter(face) {
     const faceCenterY = (leftEye.y + rightEye.y) / 2;
 
     // Convert screen coordinates to Three.js coordinates
-    const x = (faceCenterX / canvas.width) * 2 - 1;
-    const y = -(faceCenterY / canvas.height) * 2 + 1;
+    const x = (faceCenterX / canvas3d.width) * 2 - 1;
+    const y = -(faceCenterY / canvas3d.height) * 2 + 1;
 
     // Scale based on face width
     const scale = faceWidth / 100;

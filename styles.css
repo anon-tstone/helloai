@@ -45,13 +45,22 @@ h1 {
     transform: scaleX(-1); /* Mirror effect */
 }
 
-#canvas {
+#canvas2d, #canvas3d {
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
     transform: scaleX(-1); /* Mirror effect */
+}
+
+#canvas2d {
+    z-index: 2; /* On top for landmarks */
+    pointer-events: none; /* Allow clicks to pass through */
+}
+
+#canvas3d {
+    z-index: 1; /* Behind landmarks */
 }
 
 .controls {
