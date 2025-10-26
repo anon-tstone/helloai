@@ -5,6 +5,7 @@ let currentFilter = 'none';
 let scene, camera, renderer;
 let filterObjects = {};
 let animationId;
+let showLandmarks = true;
 
 // Initialize the application
 async function init() {
@@ -71,7 +72,8 @@ async function setupCamera() {
 async function setupFaceDetection() {
     const model = faceLandmarksDetection.SupportedModels.MediaPipeFaceMesh;
     const detectorConfig = {
-        runtime: 'tfjs',
+        runtime: 'mediapipe',
+        solutionPath: 'https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh',
         refineLandmarks: true,
         maxFaces: 1
     };
@@ -237,9 +239,18 @@ async function detectFaces() {
     // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    if (faces.length > 0 && currentFilter !== 'none') {
+    if (faces.length > 0) {
         const face = faces[0];
-        applyFilter(face);
+
+        // Draw facial landmarks if enabled
+        if (showLandmarks) {
+            drawFaceLandmarks(face);
+        }
+
+        // Apply filter if selected
+        if (currentFilter !== 'none') {
+            applyFilter(face);
+        }
     }
 
     // Render Three.js scene
@@ -247,6 +258,37 @@ async function detectFaces() {
 
     // Continue loop
     animationId = requestAnimationFrame(detectFaces);
+}
+
+// Draw facial landmarks on canvas
+function drawFaceLandmarks(face) {
+    const keypoints = face.keypoints;
+
+    // Draw all keypoints
+    ctx.fillStyle = '#00ff00';
+    keypoints.forEach(point => {
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, 2, 0, 2 * Math.PI);
+        ctx.fill();
+    });
+
+    // Draw eye landmarks in different color
+    ctx.fillStyle = '#ff00ff';
+    [33, 133, 160, 159, 158, 157, 173, 263, 362, 385, 386, 387, 388, 466].forEach(index => {
+        if (keypoints[index]) {
+            ctx.beginPath();
+            ctx.arc(keypoints[index].x, keypoints[index].y, 3, 0, 2 * Math.PI);
+            ctx.fill();
+        }
+    });
+
+    // Draw nose tip in red
+    ctx.fillStyle = '#ff0000';
+    if (keypoints[1]) {
+        ctx.beginPath();
+        ctx.arc(keypoints[1].x, keypoints[1].y, 4, 0, 2 * Math.PI);
+        ctx.fill();
+    }
 }
 
 // Apply filter to detected face
@@ -311,6 +353,14 @@ function setupControls() {
             }
         });
     });
+
+    // Setup landmarks toggle
+    const landmarksCheckbox = document.getElementById('showLandmarks');
+    if (landmarksCheckbox) {
+        landmarksCheckbox.addEventListener('change', (e) => {
+            showLandmarks = e.target.checked;
+        });
+    }
 }
 
 // Update status message

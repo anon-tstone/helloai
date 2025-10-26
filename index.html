@@ -26,6 +26,13 @@
                 <button class="filter-btn" data-filter="bunny">หูกระต่าย</button>
                 <button class="filter-btn" data-filter="crown">👑 มงกุฎ</button>
             </div>
+
+            <div style="margin-top: 20px;">
+                <label style="display: flex; align-items: center; cursor: pointer;">
+                    <input type="checkbox" id="showLandmarks" checked style="width: 20px; height: 20px; margin-right: 10px; cursor: pointer;">
+                    <span style="font-size: 1.1rem; font-weight: 600;">แสดงจุด Face Tracking</span>
+                </label>
+            </div>
         </div>
 
         <!-- Status -->
@@ -33,10 +40,9 @@
     </div>
 
     <!-- Libraries -->
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/face-landmarks-detection"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.11.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/face-landmarks-detection@1.0.2/dist/face-landmarks-detection.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/face_mesh.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.150.0/build/three.min.js"></script>
 
     <!-- Main App -->
