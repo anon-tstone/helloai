@@ -70,11 +70,12 @@ async function setupCamera() {
 
 // Setup face detection
 async function setupFaceDetection() {
+    // Wait for TensorFlow.js backend to be ready
+    await tf.ready();
+
     const model = faceLandmarksDetection.SupportedModels.MediaPipeFaceMesh;
     const detectorConfig = {
-        runtime: 'mediapipe',
-        solutionPath: 'https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh',
-        refineLandmarks: true,
+        runtime: 'tfjs',
         maxFaces: 1
     };
     detector = await faceLandmarksDetection.createDetector(model, detectorConfig);
