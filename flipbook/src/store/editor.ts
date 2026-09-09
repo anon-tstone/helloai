@@ -247,6 +247,11 @@ export const useEditor = create<EditorState>((set, get) => {
                 : {}),
             },
             flipStyle: theme.flipStyle,
+            // A custom paper tile is the author's choice; themes don't take it.
+            paper:
+              d.settings.paper?.kind === 'custom'
+                ? d.settings.paper
+                : structuredClone(theme.paper),
           },
           pages: d.pages.map((page) => ({
             ...page,

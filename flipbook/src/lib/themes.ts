@@ -6,7 +6,7 @@
  * and fonts that still match the *previous* theme — so a deliberate colour
  * choice survives a theme change, while untouched defaults follow along.
  */
-import type { DocSettings, Fill, PageBackground } from '../shared/types'
+import type { DocSettings, Fill, PageBackground, PaperTexture } from '../shared/types'
 
 export interface FlipTheme {
   id: string
@@ -28,6 +28,8 @@ export interface FlipTheme {
   surfaceAlt: string
   /** Cover pages get their own, higher-contrast treatment. */
   cover: { background: PageBackground; ink: string; inkMuted: string }
+  /** Paper stock tiled across every page. */
+  paper: PaperTexture
   /** Swatches offered in the left panel while this theme is active. */
   palette: string[]
   flipStyle: DocSettings['flipStyle']
@@ -48,6 +50,7 @@ export const DEFAULT_THEME: FlipTheme = {
   accent: '#6c5ce7',
   headingFont: 'Inter',
   bodyFont: 'Inter',
+  paper: { kind: 'none', color: '#111318', opacity: 0.1, scale: 24 },
   surfaceAlt: '#f4f2ff',
   cover: {
     background: { fill: { kind: 'linear', from: '#221a4b', to: '#0f1020', angle: 160 } },
@@ -72,6 +75,7 @@ export const THEMES: FlipTheme[] = [
     accent: '#8e7bff',
     headingFont: 'Poppins',
     bodyFont: 'Inter',
+    paper: { kind: 'grain', color: '#000000', opacity: 0.14, scale: 5 },
     surfaceAlt: '#171630',
     cover: {
       background: { fill: { kind: 'linear', from: '#3a2f8f', to: '#08070f', angle: 160 } },
@@ -93,6 +97,7 @@ export const THEMES: FlipTheme[] = [
     accent: '#a32b2b',
     headingFont: 'Playfair Display',
     bodyFont: 'Georgia',
+    paper: { kind: 'fiber', color: '#8a7f6d', opacity: 0.13, scale: 9 },
     surfaceAlt: '#ece3d2',
     cover: {
       background: { fill: { kind: 'solid', color: '#1d1a16' } },
@@ -114,6 +119,7 @@ export const THEMES: FlipTheme[] = [
     accent: '#2f9e6b',
     headingFont: 'Poppins',
     bodyFont: 'Inter',
+    paper: { kind: 'dots', color: '#16311f', opacity: 0.08, scale: 20 },
     surfaceAlt: '#dcebdf',
     cover: {
       background: { fill: { kind: 'linear', from: '#2f9e6b', to: '#0f2a1e', angle: 160 } },
@@ -135,6 +141,7 @@ export const THEMES: FlipTheme[] = [
     accent: '#e2593b',
     headingFont: 'Poppins',
     bodyFont: 'Inter',
+    paper: { kind: 'grain', color: '#000000', opacity: 0.1, scale: 5 },
     surfaceAlt: '#ffe3d3',
     cover: {
       background: { fill: { kind: 'linear', from: '#e2593b', to: '#5a1f2e', angle: 160 } },
@@ -156,6 +163,7 @@ export const THEMES: FlipTheme[] = [
     accent: '#0f7c85',
     headingFont: 'Prompt',
     bodyFont: 'Sarabun',
+    paper: { kind: 'linen', color: '#14282c', opacity: 0.1, scale: 22 },
     surfaceAlt: '#e6efee',
     cover: {
       background: { fill: { kind: 'linear', from: '#0f7c85', to: '#0a1f24', angle: 160 } },

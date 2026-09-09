@@ -620,3 +620,26 @@ input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px;
   /* The canvas is scaled, so counter-scale the label to stay readable. */
   font-size: 42px;
 }
+
+/* --- paper texture picker ------------------------------------------------ */
+.paper-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.paper-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px;
+  display: grid;
+  gap: 4px;
+  justify-items: center;
+  font-size: 11px;
+}
+.paper-card.active { border-color: var(--accent); background: rgba(108, 92, 231, 0.14); }
+.paper-swatch {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 5px;
+  background: #fff;
+  overflow: hidden;
+}
+.paper-swatch > span { display: block; }

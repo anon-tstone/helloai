@@ -250,6 +250,34 @@ await page.waitForTimeout(200)
 check('undo reverts a theme change',
   (await page.locator('.theme-card.active:has-text("Midnight")').count()) === 1)
 
+// --- paper texture ---------------------------------------------------------
+console.log('\nPaper texture')
+await page.click('.left-tabs button:has-text("Background")')
+check('paper stock picker is present', (await page.locator('.paper-card').count()) === 6)
+await page.click('.paper-card:has-text("Plain")')
+await page.waitForTimeout(150)
+check('plain stock renders no texture layer',
+  (await page.locator('.canvas-page-wrap .fb-paper').count()) === 0)
+
+for (const kind of ['Linen', 'Fibre', 'Grain', 'Dots', 'Grid']) {
+  await page.click(`.paper-card:has-text("${kind}")`)
+  await page.waitForTimeout(150)
+  const img = await page.evaluate(() => {
+    const el = document.querySelector('.canvas-page-wrap .fb-paper')
+    return el ? getComputedStyle(el).backgroundImage : null
+  })
+  check(`${kind} paper renders`, Boolean(img && img !== 'none'))
+}
+
+await page.click('.paper-card:has-text("Linen")')
+await page.locator('.field:has(span:text-is("Strength %")) input').fill('35')
+await page.locator('.field:has(span:text-is("Scale px")) input').fill('60')
+await page.waitForTimeout(250)
+check('paper strength and scale reach the page', await page.evaluate(() => {
+  const cs = getComputedStyle(document.querySelector('.canvas-page-wrap .fb-paper'))
+  return cs.opacity === '0.35' && cs.backgroundImage.includes('10px')
+}))
+
 // --- viewer backdrop -------------------------------------------------------
 console.log('\nViewer backdrop')
 await page.click('.right-tabs button:has-text("Document")')
@@ -356,6 +384,11 @@ const bookBox = await op.evaluate(() => {
   const r = document.querySelector('.fb-book').getBoundingClientRect()
   return { cx: Math.round(r.x + r.width / 2), cy: Math.round(r.y + r.height / 2) }
 })
+check('the offline book keeps its paper texture', await op.evaluate(() => {
+  const el = document.querySelector('.fb-face .fb-paper')
+  return Boolean(el && getComputedStyle(el).backgroundImage !== 'none')
+}))
+
 check('the offline export carries the gradient backdrop',
   (await op.evaluate(() => getComputedStyle(document.body).backgroundImage)).includes('linear-gradient'))
 

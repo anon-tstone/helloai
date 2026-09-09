@@ -2,11 +2,12 @@ import { useRef, useState } from 'react'
 import { useEditor } from '../store/editor'
 import { createLine, createShape, createText, elementForAsset } from '../lib/factory'
 import { ACCEPTED_UPLOAD_TYPES, isSupportedUpload, uploadFile } from '../lib/uploads'
+import { DEFAULT_PAPER, type PaperKind, type PaperTexture } from '../shared/types'
 import { THEMES, findTheme, type FlipTheme } from '../lib/themes'
 import { fillToCss } from '../lib/style'
 import type { ShapeKind } from '../shared/types'
 import { PAGE_TEMPLATES } from '../lib/templates'
-import { shapePath } from '../lib/style'
+import { paperTextureStyle, shapePath } from '../lib/style'
 
 type Tab = 'themes' | 'design' | 'elements' | 'text' | 'uploads' | 'background'
 
@@ -383,6 +384,121 @@ function UploadsTab() {
   )
 }
 
+/**
+ * Paper stock for the whole book. Built-in textures are pure CSS, so they add
+ * nothing to an offline export; a custom tile is uploaded and bundled.
+ */
+function PaperFields() {
+  const settings = useEditor((s) => s.doc.settings)
+  const assets = useEditor((s) => s.doc.assets)
+  const updateSettings = useEditor((s) => s.updateSettings)
+  const paper = settings.paper ?? DEFAULT_PAPER
+
+  const patch = (next: Partial<PaperTexture>) =>
+    updateSettings({ paper: { ...paper, ...next } })
+
+  const kinds: { id: PaperKind; label: string }[] = [
+    { id: 'none', label: 'Plain' },
+    { id: 'linen', label: 'Linen' },
+    { id: 'fiber', label: 'Fibre' },
+    { id: 'grain', label: 'Grain' },
+    { id: 'dots', label: 'Dots' },
+    { id: 'grid', label: 'Grid' },
+  ]
+  const images = Object.values(assets).filter((a) => a.mime.startsWith('image/'))
+
+  return (
+    <>
+      <h3>Paper texture</h3>
+      <p className="hint">Applies to every page in the book.</p>
+      <div className="paper-grid">
+        {kinds.map((k) => (
+          <button
+            key={k.id}
+            className={`paper-card ${paper.kind === k.id ? 'active' : ''}`}
+            onClick={() => patch({ kind: k.id })}
+          >
+            <PaperSwatch paper={{ ...paper, kind: k.id }} />
+            <span>{k.label}</span>
+          </button>
+        ))}
+      </div>
+
+      {paper.kind !== 'none' && (
+        <>
+          {paper.kind !== 'grain' && paper.kind !== 'custom' && (
+            <label className="field">
+              <span>Texture colour</span>
+              <input
+                type="color"
+                value={/^#[0-9a-f]{6}$/i.test(paper.color) ? paper.color : '#111318'}
+                onChange={(e) => patch({ color: e.target.value })}
+              />
+            </label>
+          )}
+          <div className="grid-2">
+            <label className="field">
+              <span>Strength %</span>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                value={Math.round(paper.opacity * 100)}
+                onChange={(e) => patch({ opacity: Number(e.target.value) / 100 })}
+              />
+            </label>
+            <label className="field">
+              <span>Scale px</span>
+              <input
+                type="number"
+                min={2}
+                value={paper.scale}
+                onChange={(e) => patch({ scale: Number(e.target.value) })}
+              />
+            </label>
+          </div>
+        </>
+      )}
+
+      <label className="field">
+        <span>Custom tile</span>
+        <select
+          value={paper.kind === 'custom' ? (paper.src ?? '') : ''}
+          onChange={(e) =>
+            patch(
+              e.target.value
+                ? { kind: 'custom', src: e.target.value }
+                : { kind: 'none', src: undefined },
+            )
+          }
+        >
+          <option value="">None</option>
+          {images.map((a) => (
+            <option key={a.id} value={`asset:${a.id}`}>
+              {a.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      {paper.kind === 'custom' && (
+        <p className="hint">
+          Tiled edge to edge at the scale above — seamless tiles work best.
+        </p>
+      )}
+    </>
+  )
+}
+
+function PaperSwatch({ paper }: { paper: PaperTexture }) {
+  // Previews use full strength so faint textures are still legible at 40px.
+  const style = paperTextureStyle({ ...paper, opacity: Math.min(1, paper.opacity * 4) }, () => '')
+  return (
+    <span className="paper-swatch">
+      {style && <span style={style as React.CSSProperties} />}
+    </span>
+  )
+}
+
 function BackgroundTab() {
   const pageIndex = useEditor((s) => s.pageIndex)
   const palette = findTheme(useEditor((s) => s.doc.settings.themeId)).palette
@@ -458,6 +574,8 @@ function BackgroundTab() {
           Remove background image
         </button>
       )}
+
+      <PaperFields />
 
       <h3>Apply to all pages</h3>
       <button

@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react'
 import type { DocSettings, FlipPage } from '../shared/types'
-import { pageBackgroundStyle, type SrcResolver } from '../lib/style'
+import { pageBackgroundStyle, paperTextureStyle, type SrcResolver } from '../lib/style'
 import { ElementView } from './ElementView'
 
 interface Props {
@@ -25,6 +25,8 @@ export function PageView({
   style,
   children,
 }: Props) {
+  const paper = paperTextureStyle(settings.paper, resolve)
+
   return (
     <div
       className={`fb-page ${className ?? ''}`}
@@ -38,6 +40,7 @@ export function PageView({
         ...style,
       }}
     >
+      {paper && <div className="fb-paper" style={paper as CSSProperties} />}
       {page.elements.map((el) => (
         <ElementView
           key={el.id}

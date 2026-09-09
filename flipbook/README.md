@@ -38,6 +38,9 @@ server and no internet.
 - Thumbnail strip with live page previews
 - Drag to reorder, duplicate, delete, rename inline
 - Page backgrounds: solid, gradient, or image — apply to one page or all
+- **Paper texture** for the whole book: linen, fibre, grain, dots, grid or your
+  own tiled image, with adjustable colour, strength and scale. The built-in
+  textures are pure CSS, so they cost an offline export nothing at all
 - Reader backdrop behind the book: solid, gradient or an image, bundled into
   offline exports along with everything else
 

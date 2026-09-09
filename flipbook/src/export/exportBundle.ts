@@ -110,6 +110,7 @@ export function collectUsedAssets(doc: FlipDoc): AssetRef[] {
     if (src && src.startsWith('asset:')) ids.add(src.slice('asset:'.length))
   }
   add(doc.settings.viewerBackground?.image?.src)
+  add(doc.settings.paper?.src)
   for (const page of doc.pages) {
     add(page.background.image?.src)
     for (const el of page.elements) {

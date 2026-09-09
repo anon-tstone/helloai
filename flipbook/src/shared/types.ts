@@ -157,6 +157,34 @@ export interface PageBackground {
   image?: { src: string; fit: ImageFit; opacity: number }
 }
 
+/**
+ * Paper stock for the whole book: a texture tiled across every page surface,
+ * drawn above the page background and beneath the elements.
+ *
+ * The built-in textures are pure CSS, so they cost nothing in an offline export
+ * and never need a network round trip.
+ */
+export type PaperKind = 'none' | 'linen' | 'fiber' | 'dots' | 'grid' | 'grain' | 'custom'
+
+export interface PaperTexture {
+  kind: PaperKind
+  /** Ink of the texture marks. Ignored by `grain`, which is neutral noise. */
+  color: string
+  /** 0–1. */
+  opacity: number
+  /** Tile size in document pixels. */
+  scale: number
+  /** Asset to tile, for `kind: 'custom'`. */
+  src?: string
+}
+
+export const DEFAULT_PAPER: PaperTexture = {
+  kind: 'none',
+  color: '#111318',
+  opacity: 0.1,
+  scale: 24,
+}
+
 export interface FlipPage {
   id: string
   name: string
@@ -186,6 +214,8 @@ export interface DocSettings {
   fonts: string[]
   /** Theme last applied, so the next theme change knows what to remap from. */
   themeId?: string
+  /** Paper stock tiled across every page. */
+  paper?: PaperTexture
 }
 
 export interface FlipDoc {

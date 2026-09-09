@@ -15,6 +15,7 @@ import {
   imageStyle,
   lineGeometry,
   pageBackgroundStyle,
+  paperTextureStyle,
   viewerBackgroundStyle,
   shapeBoxStyle,
   shapeIsBox,
@@ -135,11 +136,13 @@ export function renderPageHtml(
     overflow: 'hidden',
     ...bg,
   }
+  const paper = paperTextureStyle(settings.paper, resolve)
+  const paperLayer = paper ? `<div class="fb-paper"${styleAttr(paper)}></div>` : ''
   const elements = page.elements
     .filter((el) => !el.hidden)
     .map((el) => renderElementHtml(el, resolve))
     .join('')
-  return `<div class="fb-page" id="page-${index + 1}"${styleAttr(style)}>${elements}</div>`
+  return `<div class="fb-page" id="page-${index + 1}"${styleAttr(style)}>${paperLayer}${elements}</div>`
 }
 
 export interface StandaloneOptions {
