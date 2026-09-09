@@ -1,0 +1,31 @@
+name: Deploy Flipbook Studio
+
+# Manual trigger: deploying needs CLOUDFLARE_API_TOKEN to be set as a
+# repository secret, so it is opt-in rather than automatic on push.
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: flipbook
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: flipbook/package-lock.json
+
+      - run: npm ci
+      - run: npm run build
+
+      - name: Publish Worker and static assets
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          workingDirectory: flipbook
+          command: deploy

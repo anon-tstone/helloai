@@ -1,0 +1,35 @@
+# Flipbook Studio — Cloudflare Workers deployment.
+#
+# One Worker serves both the static editor (Workers Static Assets) and the API.
+# Bindings point at resources that already exist in the account; re-create them
+# with the commands in docs/DEPLOY.md if you deploy to a different account.
+
+name = "flipbook-studio"
+main = "worker/index.ts"
+compatibility_date = "2026-09-01"
+compatibility_flags = ["nodejs_compat"]
+
+[observability]
+enabled = true
+
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+# Unknown paths fall through to the SPA shell so /v/<slug> works on a hard load.
+not_found_handling = "single-page-application"
+
+# Project + asset metadata.
+[[d1_databases]]
+binding = "DB"
+database_name = "flipbook-studio"
+database_id = "afca4187-404a-4dd1-bf9b-6ab395d76757"
+
+# Document JSON and uploaded media.
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "flipbook-studio-assets"
+
+# Published flipbook snapshots, read at the edge.
+[[kv_namespaces]]
+binding = "PUBLISHED"
+id = "f62dac694b3e4b06ad704e24478884d5"

@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.wrangler/
+.dev.vars
+*.local
+
+# The lockfile is committed so CI can run `npm ci` for reproducible deploys.
+!package-lock.json
