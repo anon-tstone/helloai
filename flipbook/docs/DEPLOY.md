@@ -37,12 +37,33 @@ Wrangler prints the deployed URL, e.g. `https://flipbook-studio.<subdomain>.work
 
 ### Deploying from CI instead
 
-`.github/workflows/deploy-flipbook.yml` does the same thing from GitHub Actions.
-Add one repository secret and run the workflow from the Actions tab:
+`.github/workflows/deploy-flipbook.yml` does the same thing from GitHub Actions,
+with no local install and without the token ever leaving GitHub.
 
-- `CLOUDFLARE_API_TOKEN` — an API token with **Workers Scripts: Edit**,
-  **Workers KV Storage: Edit**, **Workers R2 Storage: Edit** and **D1: Edit**
-  on the target account.
+1. Create the token at **dash.cloudflare.com → My Profile → API Tokens →
+   Create Token**. The **Edit Cloudflare Workers** template covers it; otherwise
+   grant **Workers Scripts: Edit**, **Workers KV Storage: Edit**,
+   **Workers R2 Storage: Edit** and **D1: Edit** on the target account.
+2. Add it as the repository secret `CLOUDFLARE_API_TOKEN`
+   (**Settings → Secrets and variables → Actions**). Add
+   `CLOUDFLARE_ACCOUNT_ID` too if the token can reach more than one account.
+3. Push to the feature branch, or run the workflow from the Actions tab once
+   this file is on the default branch — GitHub only offers manual dispatch for
+   workflows that exist there.
+
+Until the secret exists the workflow still runs: it builds the app to prove the
+branch compiles, then reports that it skipped the deploy rather than failing.
+
+### Why deployment cannot be automated from the Cloudflare MCP server
+
+The Cloudflare MCP server can create the storage resources this project needs
+(`d1_database_create`, `kv_namespace_create`, `r2_bucket_create`), which is how
+the D1 database, KV namespace and R2 bucket here were made. It exposes no tool
+that uploads a Worker script — `workers_list`, `workers_get_worker` and
+`workers_get_worker_code` are read-only. Granting the OAuth app *Workers Write*
+does not change that: the scope governs what the token may do, while the tool
+list is fixed by the MCP server. Deployment therefore goes through `wrangler`,
+either locally or from the workflow above.
 
 ### Deploying to a different Cloudflare account
 
