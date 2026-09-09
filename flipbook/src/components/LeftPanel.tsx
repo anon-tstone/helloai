@@ -1,12 +1,14 @@
 import { useRef, useState } from 'react'
 import { useEditor } from '../store/editor'
-import { createImage, createLine, createShape, createText } from '../lib/factory'
+import { createLine, createShape, createText, elementForAsset } from '../lib/factory'
+import { ACCEPTED_UPLOAD_TYPES, isSupportedUpload, uploadFile } from '../lib/uploads'
+import { THEMES, findTheme, type FlipTheme } from '../lib/themes'
+import { fillToCss } from '../lib/style'
 import type { ShapeKind } from '../shared/types'
 import { PAGE_TEMPLATES } from '../lib/templates'
-import { api } from '../lib/api'
 import { shapePath } from '../lib/style'
 
-type Tab = 'design' | 'elements' | 'text' | 'uploads' | 'background'
+type Tab = 'themes' | 'design' | 'elements' | 'text' | 'uploads' | 'background'
 
 const SHAPES: ShapeKind[] = [
   'rect',
@@ -28,24 +30,21 @@ const TEXT_PRESETS = [
   { label: 'Add a caption', size: 22, weight: 400 },
 ]
 
-const PALETTE = [
-  '#ffffff', '#f4f2ff', '#111318', '#3a3f4b', '#6c5ce7', '#8e7bff',
-  '#00b894', '#0984e3', '#fdcb6e', '#e17055', '#d63031', '#e84393',
-]
 
 export function LeftPanel() {
-  const [tab, setTab] = useState<Tab>('design')
+  const [tab, setTab] = useState<Tab>('themes')
 
   return (
     <aside className="left-panel">
       <nav className="left-tabs">
-        {(['design', 'elements', 'text', 'uploads', 'background'] as Tab[]).map((t) => (
+        {(['themes', 'design', 'elements', 'text', 'uploads', 'background'] as Tab[]).map((t) => (
           <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
             {t[0].toUpperCase() + t.slice(1)}
           </button>
         ))}
       </nav>
       <div className="left-body">
+        {tab === 'themes' && <ThemesTab />}
         {tab === 'design' && <DesignTab />}
         {tab === 'elements' && <ElementsTab />}
         {tab === 'text' && <TextTab />}
@@ -56,6 +55,60 @@ export function LeftPanel() {
   )
 }
 
+function ThemesTab() {
+  const themeId = useEditor((s) => s.doc.settings.themeId)
+  const applyTheme = useEditor((s) => s.applyTheme)
+  const [recolor, setRecolor] = useState(true)
+
+  return (
+    <section>
+      <h3>Flipbook theme</h3>
+      <p className="hint">
+        Restyles every page at once: page surface, viewer background, fonts and
+        turn style.
+      </p>
+      <div className="theme-grid">
+        {THEMES.map((theme) => (
+          <button
+            key={theme.id}
+            className={`theme-card ${theme.id === themeId ? 'active' : ''}`}
+            onClick={() => applyTheme(theme, { recolorContents: recolor })}
+          >
+            <ThemeSwatch theme={theme} />
+            <strong>{theme.name}</strong>
+            <span>{theme.description}</span>
+          </button>
+        ))}
+      </div>
+
+      <label className="field inline">
+        <input
+          type="checkbox"
+          checked={recolor}
+          onChange={(e) => setRecolor(e.target.checked)}
+        />
+        <span>Restyle existing text and shapes too</span>
+      </label>
+      <p className="hint">
+        Only colours and fonts still matching the current theme change — anything
+        you picked by hand is left alone. Undo reverts the whole switch.
+      </p>
+    </section>
+  )
+}
+
+function ThemeSwatch({ theme }: { theme: FlipTheme }) {
+  return (
+    <span className="theme-swatch" style={{ background: theme.viewerBackground }}>
+      <span className="theme-page" style={{ background: fillToCss(theme.pageBackground.fill) }}>
+        <i style={{ background: theme.accent }} />
+        <i style={{ background: theme.ink }} />
+        <i style={{ background: theme.inkMuted }} />
+      </span>
+    </span>
+  )
+}
+
 function DesignTab() {
   const settings = useEditor((s) => s.doc.settings)
   const pageIndex = useEditor((s) => s.pageIndex)
@@ -63,7 +116,7 @@ function DesignTab() {
   const applyTemplate = (id: string) => {
     const template = PAGE_TEMPLATES.find((t) => t.id === id)
     if (!template) return
-    const built = template.build(settings.width, settings.height)
+    const built = template.build(settings.width, settings.height, findTheme(settings.themeId))
     const store = useEditor.getState()
     store.pushHistory()
     store.setPageBackground(pageIndex, built.background)
@@ -102,6 +155,7 @@ function TemplatePreview({ id }: { id: string }) {
 function ElementsTab() {
   const addElements = useEditor((s) => s.addElements)
   const settings = useEditor((s) => s.doc.settings)
+  const palette = findTheme(settings.themeId).palette
 
   const addShape = (shape: ShapeKind) => {
     const size = Math.round(settings.width * 0.28)
@@ -173,9 +227,9 @@ function ElementsTab() {
         </button>
       </div>
 
-      <h3>Colour palette</h3>
+      <h3>Theme palette</h3>
       <div className="swatches">
-        {PALETTE.map((c) => (
+        {palette.map((c) => (
           <button
             key={c}
             className="swatch"
@@ -242,35 +296,40 @@ function UploadsTab() {
   const addElements = useEditor((s) => s.addElements)
   const inputRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
 
   const upload = async (files: FileList | null) => {
-    if (!files || files.length === 0) return
+    const accepted = Array.from(files ?? []).filter(isSupportedUpload)
+    if (accepted.length === 0) {
+      if (files?.length) setNotice('Only images and MP4/WebM video can be uploaded.')
+      return
+    }
     setBusy(true)
-    setError(null)
-    for (const file of Array.from(files)) {
+    setNotice(null)
+    let anyLocal = false
+    for (const file of accepted) {
       try {
-        const asset = await api.uploadAsset(file)
+        const { asset, local } = await uploadFile(file)
         registerAsset(asset)
-      } catch {
-        // Without the API (static hosting or offline) keep the image inline so
-        // the editor and the offline export still work.
-        try {
-          const dataUrl = await fileToDataUrl(file)
-          registerAsset({
-            id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-            name: file.name,
-            mime: file.type,
-            size: file.size,
-            url: dataUrl,
-          })
-          setError('Saved locally — the upload API was unreachable.')
-        } catch (e) {
-          setError(e instanceof Error ? e.message : 'Upload failed')
-        }
+        anyLocal ||= local
+      } catch (e) {
+        setNotice(e instanceof Error ? e.message : 'Upload failed')
       }
     }
+    if (anyLocal) setNotice('Stored in this document — the upload API was unreachable.')
     setBusy(false)
+  }
+
+  const place = (assetId: string) => {
+    const asset = doc.assets[assetId]
+    if (!asset) return
+    addElements([
+      elementForAsset(
+        asset,
+        { x: doc.settings.width / 2, y: doc.settings.height / 2 },
+        Math.round(doc.settings.width * 0.6),
+      ),
+    ])
   }
 
   const assets = Object.values(doc.assets)
@@ -279,12 +338,12 @@ function UploadsTab() {
     <section>
       <h3>Uploads</h3>
       <button className="primary block" onClick={() => inputRef.current?.click()} disabled={busy}>
-        {busy ? 'Uploading…' : 'Upload images'}
+        {busy ? 'Uploading…' : 'Upload images or video'}
       </button>
       <input
         ref={inputRef}
         type="file"
-        accept="image/*,video/mp4"
+        accept={ACCEPTED_UPLOAD_TYPES}
         multiple
         hidden
         onChange={(e) => {
@@ -292,30 +351,30 @@ function UploadsTab() {
           e.target.value = ''
         }}
       />
-      {error && <p className="hint warn">{error}</p>}
+      {notice && <p className="hint warn">{notice}</p>}
+      <p className="hint">Click to place in the middle, or drag onto the page.</p>
 
       <div className="asset-grid">
         {assets.map((asset) => (
           <button
             key={asset.id}
             className="asset-card"
-            title={asset.name}
-            onClick={() => {
-              const settings = doc.settings
-              const w = Math.round(settings.width * 0.5)
-              const ratio = asset.width && asset.height ? asset.height / asset.width : 0.75
-              addElements([
-                createImage(`asset:${asset.id}`, {
-                  name: asset.name,
-                  x: Math.round(settings.width * 0.25),
-                  y: Math.round(settings.height * 0.3),
-                  w,
-                  h: Math.round(w * ratio),
-                }),
-              ])
+            title={`${asset.name} — drag onto the page`}
+            draggable
+            onDragStart={(e) => {
+              e.dataTransfer.setData('application/x-flipbook-asset', asset.id)
+              e.dataTransfer.effectAllowed = 'copy'
             }}
+            onClick={() => place(asset.id)}
           >
-            <img src={asset.url} alt={asset.name} />
+            {asset.mime.startsWith('video/') ? (
+              <>
+                <video src={asset.url} muted preload="metadata" />
+                <span className="asset-badge">▶</span>
+              </>
+            ) : (
+              <img src={asset.url} alt={asset.name} />
+            )}
           </button>
         ))}
       </div>
@@ -326,6 +385,7 @@ function UploadsTab() {
 
 function BackgroundTab() {
   const pageIndex = useEditor((s) => s.pageIndex)
+  const palette = findTheme(useEditor((s) => s.doc.settings.themeId)).palette
   const page = useEditor((s) => s.doc.pages[s.pageIndex])
   const doc = useEditor((s) => s.doc)
   const setPageBackground = useEditor((s) => s.setPageBackground)
@@ -335,7 +395,7 @@ function BackgroundTab() {
     <section>
       <h3>Page background</h3>
       <div className="swatches">
-        {PALETTE.map((c) => (
+        {palette.map((c) => (
           <button
             key={c}
             className="swatch"
@@ -377,7 +437,9 @@ function BackgroundTab() {
 
       <h3>Background image</h3>
       <div className="asset-grid">
-        {Object.values(doc.assets).map((asset) => (
+        {Object.values(doc.assets)
+          .filter((asset) => asset.mime.startsWith('image/'))
+          .map((asset) => (
           <button
             key={asset.id}
             className="asset-card"
@@ -389,7 +451,7 @@ function BackgroundTab() {
           >
             <img src={asset.url} alt={asset.name} />
           </button>
-        ))}
+          ))}
       </div>
       {page?.background.image && (
         <button className="block" onClick={() => setPageBackground(pageIndex, { image: undefined })}>
@@ -413,11 +475,3 @@ function BackgroundTab() {
   )
 }
 
-function fileToDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(String(reader.result))
-    reader.onerror = () => reject(reader.error)
-    reader.readAsDataURL(file)
-  })
-}

@@ -83,6 +83,28 @@ function writeSamplePng(file, w = 320, h = 200) {
 const samplePng = path.join(work, 'sample.png')
 writeSamplePng(samplePng)
 
+/** Records a short, genuinely decodable .webm to use as a video fixture. */
+async function makeSampleVideo(file) {
+  const rec = await chromium.launch(launchOptions)
+  const dir = path.join(work, 'rec')
+  const recCtx = await rec.newContext({
+    recordVideo: { dir, size: { width: 320, height: 180 } },
+    viewport: { width: 320, height: 180 },
+  })
+  const recPage = await recCtx.newPage()
+  await recPage.setContent(
+    '<body style="margin:0;background:#6c5ce7"><h1 style="color:#fff;font:700 26px sans-serif;padding:40px">Sample clip</h1></body>',
+  )
+  await recPage.waitForTimeout(1200)
+  await recCtx.close()
+  await rec.close()
+  const recorded = fs.readdirSync(dir).find((f) => f.endsWith('.webm'))
+  fs.copyFileSync(path.join(dir, recorded), file)
+}
+
+const sampleVideo = path.join(work, 'sample.webm')
+await makeSampleVideo(sampleVideo)
+
 const browser = await chromium.launch(launchOptions)
 const ctx = await browser.newContext({ viewport: { width: 1600, height: 950 }, acceptDownloads: true })
 const page = await ctx.newPage()
@@ -191,6 +213,86 @@ await page.waitForTimeout(900)
 check('reader turns a page', (await page.locator('.reader-sheet.flipped').count()) >= 1)
 await page.click('button:has-text("Close preview")')
 
+// --- themes ----------------------------------------------------------------
+console.log('\nThemes')
+await page.click('.left-tabs button:has-text("Design")')
+await page.click('.template-card:has-text("Title + body")')
+const inkBefore = await page.evaluate(
+  () => getComputedStyle(document.querySelector('.fb-page .fb-el div')).color,
+)
+const surfaceBefore = await page.evaluate(
+  () => getComputedStyle(document.querySelector('.canvas-page-wrap .fb-page')).background,
+)
+
+await page.click('.left-tabs button:has-text("Themes")')
+check('theme presets are listed', (await page.locator('.theme-card').count()) >= 5)
+await page.click('.theme-card:has-text("Midnight")')
+await page.waitForTimeout(300)
+check('applying a theme repaints the page surface',
+  surfaceBefore !== (await page.evaluate(
+    () => getComputedStyle(document.querySelector('.canvas-page-wrap .fb-page')).background)))
+check('applying a theme restyles template text',
+  inkBefore !== (await page.evaluate(
+    () => getComputedStyle(document.querySelector('.fb-page .fb-el div')).color)))
+
+// A colour the author picked must not be swept up by the next theme change.
+await page.click('.left-tabs button:has-text("Elements")')
+await page.click('.shape-grid .shape-btn >> nth=0')
+await page.locator('.right-body input[type=color]').first().fill('#ff0000')
+await page.click('.left-tabs button:has-text("Themes")')
+await page.click('.theme-card:has-text("Editorial")')
+await page.waitForTimeout(300)
+check('a hand-picked colour survives a theme change', await page.evaluate(() =>
+  [...document.querySelectorAll('.canvas-page-wrap .fb-el[data-type="shape"] div')]
+    .some((el) => getComputedStyle(el).backgroundColor === 'rgb(255, 0, 0)')))
+await page.keyboard.press('Control+z')
+await page.waitForTimeout(200)
+check('undo reverts a theme change',
+  (await page.locator('.theme-card.active:has-text("Midnight")').count()) === 1)
+
+// --- video and drag-and-drop ------------------------------------------------
+console.log('\nVideo and drag-and-drop')
+await page.click('.left-tabs button:has-text("Uploads")')
+await page.setInputFiles('.left-body input[type=file]', sampleVideo)
+await page.waitForSelector('.asset-card video', { timeout: 25000 })
+await page.locator('.asset-card').filter({ has: page.locator('video') }).click()
+await page.waitForTimeout(300)
+const placedVideo = await page.evaluate(() => {
+  const el = document.querySelector('.canvas-page-wrap .fb-el[data-type="video"] video')
+  return el ? { tag: el.tagName, w: el.clientWidth, h: el.clientHeight } : null
+})
+check('a video asset is placed as a video element, not an image',
+  placedVideo?.tag === 'VIDEO', JSON.stringify(placedVideo))
+check('video keeps its real aspect ratio',
+  placedVideo ? Math.abs(placedVideo.w / placedVideo.h - 320 / 180) < 0.1 : false)
+check('the video inspector is shown',
+  (await page.locator('.inspector-group:has(h4:text-is("Video"))').count()) === 1)
+
+await page.keyboard.press('Delete')
+const dropWrap = await page.locator('.canvas-page-wrap').boundingBox()
+const dropX = dropWrap.x + dropWrap.width * 0.25
+const dropY = dropWrap.y + dropWrap.height * 0.75
+await page.locator('.asset-card').filter({ has: page.locator('video') }).hover()
+await page.mouse.down()
+await page.mouse.move(dropX, dropY, { steps: 20 })
+const dropOverlay = await page.locator('.drop-target-overlay').count()
+await page.mouse.up()
+await page.waitForTimeout(400)
+check('a drop affordance appears while dragging over the page', dropOverlay === 1)
+const droppedAt = await page.evaluate(() => {
+  const el = document.querySelector('.canvas-page-wrap .fb-el[data-type="video"]')
+  if (!el) return null
+  const r = el.getBoundingClientRect()
+  return { cx: r.x + r.width / 2, cy: r.y + r.height / 2 }
+})
+check('a dragged asset lands where it was dropped',
+  droppedAt ? Math.abs(droppedAt.cx - dropX) < 25 && Math.abs(droppedAt.cy - dropY) < 25 : false)
+
+// Applying a template replaces the page contents, so put the image back before
+// exporting — the export checks below expect both media types to be present.
+await page.locator('.asset-card').filter({ has: page.locator('img') }).first().click()
+await page.waitForTimeout(200)
+
 // --- offline export --------------------------------------------------------
 console.log('\nOffline export')
 await page.click('button:has-text("Export offline")')
@@ -226,6 +328,13 @@ const img = await op.evaluate(() => {
   const el = document.querySelector('.fb-page img')
   return el ? { src: el.getAttribute('src'), width: el.naturalWidth } : null
 })
+const offlineVideo = await op.evaluate(() => {
+  const v = document.querySelector('.fb-page video')
+  return v ? { src: v.getAttribute('src'), width: v.videoWidth } : null
+})
+check('the bundled video loads from the relative assets path',
+  Boolean(offlineVideo && offlineVideo.src.startsWith('assets/')), JSON.stringify(offlineVideo))
+
 check('the bundled image loads from the relative assets path',
   Boolean(img && img.width > 0 && img.src.startsWith('assets/')), JSON.stringify(img))
 

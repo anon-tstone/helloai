@@ -1,28 +1,35 @@
+/**
+ * Page templates.
+ *
+ * Every template is built from the document's active theme, so applying a
+ * template gives pages that already match the book — and a later theme change
+ * remaps the colours they produced, because they came from the theme to begin
+ * with.
+ */
 import type { FlipPage } from '../shared/types'
 import { createPage, createShape, createText } from './factory'
+import type { FlipTheme } from './themes'
 
 export interface PageTemplate {
   id: string
   name: string
-  build: (w: number, h: number) => FlipPage
+  build: (w: number, h: number, theme: FlipTheme) => FlipPage
 }
-
-const ACCENT = '#6c5ce7'
-const INK = '#12141a'
 
 export const PAGE_TEMPLATES: PageTemplate[] = [
   {
     id: 'blank',
     name: 'Blank',
-    build: () => createPage({ name: 'Blank' }),
+    build: (_w, _h, theme) =>
+      createPage({ name: 'Blank', background: structuredClone(theme.pageBackground) }),
   },
   {
     id: 'cover',
     name: 'Cover',
-    build: (w, h) =>
+    build: (w, h, theme) =>
       createPage({
         name: 'Cover',
-        background: { fill: { kind: 'linear', from: '#221a4b', to: '#0f1020', angle: 160 } },
+        background: structuredClone(theme.cover.background),
         elements: [
           createShape('rect', {
             name: 'Accent bar',
@@ -31,7 +38,7 @@ export const PAGE_TEMPLATES: PageTemplate[] = [
             w: w * 0.18,
             h: 10,
             radius: 6,
-            fill: { kind: 'solid', color: ACCENT },
+            fill: { kind: 'solid', color: theme.accent },
           }),
           createText({
             name: 'Title',
@@ -42,7 +49,8 @@ export const PAGE_TEMPLATES: PageTemplate[] = [
             h: h * 0.2,
             fontSize: Math.round(w * 0.1),
             fontWeight: 900,
-            color: '#ffffff',
+            fontFamily: theme.headingFont,
+            color: theme.cover.ink,
             lineHeight: 1.05,
           }),
           createText({
@@ -54,7 +62,8 @@ export const PAGE_TEMPLATES: PageTemplate[] = [
             h: h * 0.08,
             fontSize: Math.round(w * 0.032),
             fontWeight: 400,
-            color: 'rgba(255,255,255,.72)',
+            fontFamily: theme.bodyFont,
+            color: theme.cover.inkMuted,
           }),
         ],
       }),
@@ -62,9 +71,10 @@ export const PAGE_TEMPLATES: PageTemplate[] = [
   {
     id: 'title-body',
     name: 'Title + body',
-    build: (w, h) =>
+    build: (w, h, theme) =>
       createPage({
         name: 'Article',
+        background: structuredClone(theme.pageBackground),
         elements: [
           createText({
             name: 'Heading',
@@ -75,7 +85,8 @@ export const PAGE_TEMPLATES: PageTemplate[] = [
             h: h * 0.1,
             fontSize: Math.round(w * 0.062),
             fontWeight: 800,
-            color: INK,
+            fontFamily: theme.headingFont,
+            color: theme.ink,
           }),
           createShape('rect', {
             name: 'Rule',
@@ -84,7 +95,7 @@ export const PAGE_TEMPLATES: PageTemplate[] = [
             w: w * 0.12,
             h: 6,
             radius: 3,
-            fill: { kind: 'solid', color: ACCENT },
+            fill: { kind: 'solid', color: theme.accent },
           }),
           createText({
             name: 'Body',
@@ -96,8 +107,9 @@ export const PAGE_TEMPLATES: PageTemplate[] = [
             h: h * 0.5,
             fontSize: Math.round(w * 0.028),
             fontWeight: 400,
+            fontFamily: theme.bodyFont,
             lineHeight: 1.6,
-            color: '#3a3f4b',
+            color: theme.inkMuted,
             verticalAlign: 'top',
           }),
         ],
@@ -106,9 +118,10 @@ export const PAGE_TEMPLATES: PageTemplate[] = [
   {
     id: 'two-column',
     name: 'Two columns',
-    build: (w, h) =>
+    build: (w, h, theme) =>
       createPage({
         name: 'Two columns',
+        background: structuredClone(theme.pageBackground),
         elements: [
           createText({
             name: 'Heading',
@@ -119,43 +132,35 @@ export const PAGE_TEMPLATES: PageTemplate[] = [
             h: h * 0.09,
             fontSize: Math.round(w * 0.055),
             fontWeight: 800,
-            color: INK,
+            fontFamily: theme.headingFont,
+            color: theme.ink,
           }),
-          createText({
-            name: 'Column A',
-            text: 'Left column text.',
-            x: w * 0.09,
-            y: h * 0.22,
-            w: w * 0.39,
-            h: h * 0.6,
-            fontSize: Math.round(w * 0.026),
-            lineHeight: 1.6,
-            fontWeight: 400,
-            color: '#3a3f4b',
-            verticalAlign: 'top',
-          }),
-          createText({
-            name: 'Column B',
-            text: 'Right column text.',
-            x: w * 0.52,
-            y: h * 0.22,
-            w: w * 0.39,
-            h: h * 0.6,
-            fontSize: Math.round(w * 0.026),
-            lineHeight: 1.6,
-            fontWeight: 400,
-            color: '#3a3f4b',
-            verticalAlign: 'top',
-          }),
+          ...(['Left column text.', 'Right column text.'] as const).map((text, i) =>
+            createText({
+              name: i === 0 ? 'Column A' : 'Column B',
+              text,
+              x: w * (i === 0 ? 0.09 : 0.52),
+              y: h * 0.22,
+              w: w * 0.39,
+              h: h * 0.6,
+              fontSize: Math.round(w * 0.026),
+              lineHeight: 1.6,
+              fontWeight: 400,
+              fontFamily: theme.bodyFont,
+              color: theme.inkMuted,
+              verticalAlign: 'top',
+            }),
+          ),
         ],
       }),
   },
   {
     id: 'hero-image',
     name: 'Hero image',
-    build: (w, h) =>
+    build: (w, h, theme) =>
       createPage({
         name: 'Hero',
+        background: structuredClone(theme.pageBackground),
         elements: [
           createShape('rect', {
             name: 'Image frame',
@@ -164,7 +169,7 @@ export const PAGE_TEMPLATES: PageTemplate[] = [
             w,
             h: h * 0.58,
             radius: 0,
-            fill: { kind: 'linear', from: '#8e7bff', to: '#37306b', angle: 140 },
+            fill: { kind: 'linear', from: theme.accent, to: theme.ink, angle: 140 },
           }),
           createText({
             name: 'Caption',
@@ -175,7 +180,8 @@ export const PAGE_TEMPLATES: PageTemplate[] = [
             h: h * 0.1,
             fontSize: Math.round(w * 0.04),
             fontWeight: 700,
-            color: INK,
+            fontFamily: theme.headingFont,
+            color: theme.ink,
           }),
         ],
       }),
@@ -183,10 +189,10 @@ export const PAGE_TEMPLATES: PageTemplate[] = [
   {
     id: 'quote',
     name: 'Quote',
-    build: (w, h) =>
+    build: (w, h, theme) =>
       createPage({
         name: 'Quote',
-        background: { fill: { kind: 'solid', color: '#f4f2ff' } },
+        background: { fill: { kind: 'solid', color: theme.surfaceAlt } },
         elements: [
           createText({
             name: 'Quote',
@@ -197,8 +203,9 @@ export const PAGE_TEMPLATES: PageTemplate[] = [
             h: h * 0.24,
             fontSize: Math.round(w * 0.05),
             fontWeight: 700,
+            fontFamily: theme.headingFont,
             align: 'center',
-            color: '#2b2350',
+            color: theme.ink,
             lineHeight: 1.35,
           }),
           createText({
@@ -210,8 +217,9 @@ export const PAGE_TEMPLATES: PageTemplate[] = [
             h: h * 0.06,
             fontSize: Math.round(w * 0.026),
             fontWeight: 500,
+            fontFamily: theme.bodyFont,
             align: 'center',
-            color: '#6b6494',
+            color: theme.inkMuted,
           }),
         ],
       }),

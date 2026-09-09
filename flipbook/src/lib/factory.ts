@@ -10,6 +10,8 @@ import {
   type ShapeElement,
   type ShapeKind,
   type TextElement,
+  type VideoElement,
+  type AssetRef,
 } from '../shared/types'
 
 export const newId = () => nanoid(10)
@@ -91,6 +93,21 @@ export function createImage(src: string, partial: Partial<ImageElement> = {}): I
   } as ImageElement
 }
 
+export function createVideo(src: string, partial: Partial<VideoElement> = {}): VideoElement {
+  return {
+    ...base('video', 'Video', 160, 160, 640, 360),
+    type: 'video',
+    src,
+    // Autoplay only works in browsers when the video is muted, so default to
+    // a muted, looping clip with controls available.
+    autoplay: false,
+    loop: true,
+    muted: true,
+    controls: true,
+    ...partial,
+  } as VideoElement
+}
+
 export function createPage(partial: Partial<FlipPage> = {}): FlipPage {
   return {
     id: newId(),
@@ -138,4 +155,34 @@ export function clonePage(page: FlipPage, name?: string): FlipPage {
     background: structuredClone(page.background),
     elements: cloneElements(page.elements),
   }
+}
+
+/**
+ * Builds the right element for an uploaded asset — a video asset becomes a
+ * video element, everything else an image — sized to the asset's true aspect
+ * ratio and centred on the given point.
+ *
+ * Shared by the Uploads panel and by dropping onto the canvas, so both routes
+ * place media identically.
+ */
+export function elementForAsset(
+  asset: AssetRef,
+  at: { x: number; y: number },
+  maxWidth: number,
+): FlipElement {
+  const isVideo = asset.mime.startsWith('video/')
+  const ratio =
+    asset.width && asset.height ? asset.height / asset.width : isVideo ? 9 / 16 : 0.75
+  const w = Math.round(Math.min(maxWidth, asset.width ?? maxWidth))
+  const h = Math.round(w * ratio)
+  const box = {
+    name: asset.name,
+    x: Math.round(at.x - w / 2),
+    y: Math.round(at.y - h / 2),
+    w,
+    h,
+  }
+  return isVideo
+    ? createVideo(`asset:${asset.id}`, box)
+    : createImage(`asset:${asset.id}`, box)
 }

@@ -18,7 +18,8 @@ import {
   type Rect,
   type SnapGuide,
 } from '../lib/geometry'
-import { createLine, createShape, createText } from '../lib/factory'
+import { createLine, createShape, createText, elementForAsset } from '../lib/factory'
+import { isSupportedUpload, uploadFile } from '../lib/uploads'
 import { PageView } from './PageView'
 
 type Drag =
@@ -64,6 +65,7 @@ export function Canvas() {
   const [drag, setDrag] = useState<Drag>({ kind: 'none' })
   const [guides, setGuides] = useState<SnapGuide[]>([])
   const [spaceHeld, setSpaceHeld] = useState(false)
+  const [dropActive, setDropActive] = useState(false)
 
   const page = doc.pages[pageIndex]
   const resolve = useMemo(() => makeResolver(doc), [doc])
@@ -127,6 +129,48 @@ export function Canvas() {
   }, [])
 
   if (!page) return <div className="canvas-viewport" ref={viewportRef} />
+
+  /**
+   * Accepts both an asset dragged out of the Uploads panel and files dragged
+   * straight from the desktop; either way the element lands where it was
+   * dropped rather than at a fixed spot.
+   */
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault()
+    setDropActive(false)
+    const store = useEditor.getState()
+    const at = toDoc(e)
+    const maxWidth = Math.round(doc.settings.width * 0.6)
+
+    const assetId = e.dataTransfer.getData('application/x-flipbook-asset')
+    if (assetId) {
+      const asset = store.doc.assets[assetId]
+      if (asset) store.addElements([elementForAsset(asset, at, maxWidth)])
+      return
+    }
+
+    const files = Array.from(e.dataTransfer.files).filter(isSupportedUpload)
+    if (files.length === 0) return
+    let offset = 0
+    for (const file of files) {
+      const { asset } = await uploadFile(file)
+      store.registerAsset(asset)
+      store.addElements([
+        elementForAsset(asset, { x: at.x + offset, y: at.y + offset }, maxWidth),
+      ])
+      offset += 32
+    }
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    const hasPayload =
+      e.dataTransfer.types.includes('application/x-flipbook-asset') ||
+      e.dataTransfer.types.includes('Files')
+    if (!hasPayload) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'copy'
+    if (!dropActive) setDropActive(true)
+  }
 
   const handlePointerDown = (e: React.PointerEvent) => {
     if (e.button === 1 || spaceHeld || tool === 'hand') {
@@ -389,6 +433,9 @@ export function Canvas() {
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerUp}
           onDoubleClick={handleDoubleClick}
+          onDragOver={handleDragOver}
+          onDragLeave={() => setDropActive(false)}
+          onDrop={(e) => void handleDrop(e)}
         >
           <PageView
             page={page}
@@ -468,6 +515,12 @@ export function Canvas() {
                 borderWidth: 2 / zoom,
               }}
             />
+          )}
+
+          {dropActive && (
+            <div className="drop-target-overlay">
+              <span>Drop to place here</span>
+            </div>
           )}
 
           {editingElement && <InlineTextEditor element={editingElement} />}

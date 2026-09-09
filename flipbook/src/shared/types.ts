@@ -179,6 +179,8 @@ export interface DocSettings {
   showPageNumbers: boolean
   /** Fonts referenced by the document, embedded into the offline export. */
   fonts: string[]
+  /** Theme last applied, so the next theme change knows what to remap from. */
+  themeId?: string
 }
 
 export interface FlipDoc {
@@ -212,6 +214,7 @@ export const DEFAULT_SETTINGS: DocSettings = {
   backgroundColor: '#1b1c22',
   showPageNumbers: true,
   fonts: ['Inter', 'Georgia', 'Sarabun'],
+  themeId: 'studio',
 }
 
 export function isTextElement(el: FlipElement): el is TextElement {

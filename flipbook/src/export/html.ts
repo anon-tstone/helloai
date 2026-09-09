@@ -100,6 +100,7 @@ function renderInnerHtml(el: FlipElement, resolve: SrcResolver): string {
 
     case 'video': {
       const src = resolve(el.src)
+      const poster = el.poster ? resolve(el.poster) : ''
       const attrs = [
         el.autoplay ? 'autoplay' : '',
         el.loop ? 'loop' : '',
@@ -109,7 +110,8 @@ function renderInnerHtml(el: FlipElement, resolve: SrcResolver): string {
       ]
         .filter(Boolean)
         .join(' ')
-      return `<video src="${escapeHtml(src)}" ${attrs} style="width:100%;height:100%;object-fit:cover"></video>`
+      const posterAttr = poster ? ` poster="${escapeHtml(poster)}"` : ''
+      return `<video src="${escapeHtml(src)}"${posterAttr} ${attrs} style="width:100%;height:100%;object-fit:cover"></video>`
     }
 
     case 'embed':

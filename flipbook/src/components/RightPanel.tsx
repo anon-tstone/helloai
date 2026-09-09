@@ -7,6 +7,7 @@ import type {
   LineElement,
   ShapeElement,
   TextElement,
+  VideoElement,
 } from '../shared/types'
 import { fillToCss } from '../lib/style'
 
@@ -104,6 +105,7 @@ function Inspector({ selected }: { selected: FlipElement[] }) {
       {sameType && first.type === 'shape' && <ShapeInspector el={first as ShapeElement} ids={ids} />}
       {sameType && first.type === 'line' && <LineInspector el={first as LineElement} ids={ids} />}
       {sameType && first.type === 'image' && <ImageInspector el={first as ImageElement} ids={ids} />}
+      {sameType && first.type === 'video' && <VideoInspector el={first as VideoElement} ids={ids} />}
 
       <Group title="Effects">
         <label className="field">
@@ -469,6 +471,67 @@ function ImageInspector({ el, ids }: { el: ImageElement; ids: string[] }) {
           onChange={(v) => filter({ grayscale: v })}
         />
       </div>
+    </Group>
+  )
+}
+
+function VideoInspector({ el, ids }: { el: VideoElement; ids: string[] }) {
+  const update = useEditor((s) => s.updateElements)
+  const assets = useEditor((s) => s.doc.assets)
+  const patch = (p: Partial<VideoElement>) => update(ids, () => p as Partial<FlipElement>)
+  const posters = Object.values(assets).filter((a) => a.mime.startsWith('image/'))
+
+  return (
+    <Group title="Video">
+      <label className="field inline">
+        <input
+          type="checkbox"
+          checked={el.controls}
+          onChange={(e) => patch({ controls: e.target.checked })}
+        />
+        <span>Show player controls</span>
+      </label>
+      <label className="field inline">
+        <input
+          type="checkbox"
+          checked={el.autoplay}
+          // Browsers only honour autoplay on muted video, so keep the two in step.
+          onChange={(e) => patch({ autoplay: e.target.checked, muted: e.target.checked || el.muted })}
+        />
+        <span>Play automatically</span>
+      </label>
+      <label className="field inline">
+        <input type="checkbox" checked={el.loop} onChange={(e) => patch({ loop: e.target.checked })} />
+        <span>Loop</span>
+      </label>
+      <label className="field inline">
+        <input
+          type="checkbox"
+          checked={el.muted}
+          disabled={el.autoplay}
+          onChange={(e) => patch({ muted: e.target.checked })}
+        />
+        <span>Muted{el.autoplay ? ' (required for autoplay)' : ''}</span>
+      </label>
+
+      <label className="field">
+        <span>Poster image</span>
+        <select
+          value={el.poster ?? ''}
+          onChange={(e) => patch({ poster: e.target.value || undefined })}
+        >
+          <option value="">None</option>
+          {posters.map((a) => (
+            <option key={a.id} value={`asset:${a.id}`}>
+              {a.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <p className="hint">
+        Video is bundled into offline exports; autoplay still depends on the
+        viewer's browser policy.
+      </p>
     </Group>
   )
 }

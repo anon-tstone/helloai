@@ -9,6 +9,7 @@ import type {
   PageBackground,
 } from '../shared/types'
 import { cloneElements, clonePage, createDoc, createPage, newId } from '../lib/factory'
+import { findTheme, remapBackground, themeRemap, type FlipTheme } from '../lib/themes'
 import { aabb, boundsOf, elementRect, type Rect } from '../lib/geometry'
 
 const HISTORY_LIMIT = 100
@@ -39,6 +40,11 @@ export interface EditorState {
   setTitle: (title: string) => void
   updateSettings: (patch: Partial<DocSettings>) => void
   registerAsset: (asset: AssetRef) => void
+  /**
+   * Restyle the whole book. `recolorContents` also remaps element colours and
+   * fonts that still match the outgoing theme, leaving hand-picked ones alone.
+   */
+  applyTheme: (theme: FlipTheme, opts?: { recolorContents?: boolean }) => void
 
   // -- history --------------------------------------------------------------
   /** Push the current document onto the undo stack (call before a drag). */
@@ -179,6 +185,72 @@ export const useEditor = create<EditorState>((set, get) => {
 
     registerAsset: (asset) =>
       mutate((d) => ({ ...d, assets: { ...d.assets, [asset.id]: asset } }), false),
+
+    applyTheme: (theme, opts) => {
+      const recolor = opts?.recolorContents ?? true
+      mutate((d) => {
+        const previous = findTheme(d.settings.themeId)
+        const { colors, fonts } = themeRemap(previous, theme)
+
+        const restyle = (el: FlipElement): FlipElement => {
+          if (!recolor) return el
+          const next = { ...el }
+          switch (next.type) {
+            case 'text': {
+              const mapped = colors.get(next.color.toLowerCase())
+              if (mapped) next.color = mapped
+              const font = fonts.get(next.fontFamily)
+              if (font) next.fontFamily = font
+              break
+            }
+            case 'shape': {
+              if (next.fill.kind === 'solid') {
+                const mapped = colors.get(next.fill.color.toLowerCase())
+                if (mapped) next.fill = { ...next.fill, color: mapped }
+              } else if (next.fill.kind === 'linear') {
+                const from = colors.get(next.fill.from.toLowerCase())
+                const to = colors.get(next.fill.to.toLowerCase())
+                if (from || to) {
+                  next.fill = {
+                    ...next.fill,
+                    from: from ?? next.fill.from,
+                    to: to ?? next.fill.to,
+                  }
+                }
+              }
+              const stroke = colors.get(next.stroke.toLowerCase())
+              if (stroke) next.stroke = stroke
+              break
+            }
+            case 'line': {
+              const mapped = colors.get(next.stroke.toLowerCase())
+              if (mapped) next.stroke = mapped
+              break
+            }
+            default:
+              break
+          }
+          return next
+        }
+
+        return {
+          ...d,
+          settings: {
+            ...d.settings,
+            themeId: theme.id,
+            backgroundColor: theme.viewerBackground,
+            flipStyle: theme.flipStyle,
+          },
+          pages: d.pages.map((page) => ({
+            ...page,
+            // Body, cover and tinted pages each move to the matching surface in
+            // the new theme; a background the author chose is left alone.
+            background: remapBackground(page.background, previous, theme),
+            elements: page.elements.map(restyle),
+          })),
+        }
+      })
+    },
 
     pushHistory: () =>
       set((s) => ({ past: [...s.past, s.doc].slice(-HISTORY_LIMIT), future: [] })),

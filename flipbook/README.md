@@ -9,8 +9,21 @@ server and no internet.
 
 ## What it does
 
+**Themes**
+- 6 presets — Studio, Midnight, Editorial, Botanical, Sunset, Siam (Thai fonts)
+- One click restyles the whole book: page surface, viewer background, fonts,
+  accent colour and page-turn style
+- Body, cover and tinted feature pages each move to the matching surface in the
+  new theme, rather than every page being flattened to one colour
+- Existing text and shapes are remapped **only** where they still match the
+  outgoing theme — a colour you picked by hand survives; one undo reverts it all
+- Page templates and the colour palette follow the active theme
+
 **Design canvas**
-- Text, images, 10 shape types, lines and arrows, video and raw-HTML embeds
+- Text, images, **video**, 10 shape types, lines and arrows, raw-HTML embeds
+- **Drag and drop**: drag an upload onto the page, or drop image/video files
+  straight from the desktop — they land where you drop them, at their true
+  aspect ratio
 - Move, resize from 8 handles, and rotate — all correct for rotated elements
   (the opposite corner stays pinned, exactly like a design tool should behave)
 - Smart guides that snap to page edges, page centre and other elements
@@ -18,6 +31,7 @@ server and no internet.
 - Align and distribute, arrow-key nudging, copy/paste/duplicate, undo/redo
 - Per-element shadow, opacity, entrance animation and link
 - Image filters: brightness, contrast, saturation, blur, grayscale
+- Video: autoplay/loop/muted/controls and a poster image, bundled into exports
 - Page templates (cover, article, two-column, hero, quote) and colour palettes
 
 **Pages**
@@ -38,6 +52,10 @@ server and no internet.
 - Verified: the export renders, turns pages and loads its images with **all
   network requests blocked**
 
+![themes](docs/screenshot-themes.png)
+
+*Switching the whole book to the Editorial theme.*
+
 ![offline viewer](docs/screenshot-offline-viewer.png)
 
 *An exported offline build, opened straight from `file://`.*
@@ -51,7 +69,10 @@ flipbook/
 │   ├── lib/
 │   │   ├── style.ts        appearance, shared by the editor and the exporter
 │   │   ├── geometry.ts     rotation-aware resize, hit testing, snapping
+│   │   ├── themes.ts       theme presets and the theme-to-theme remap
+│   │   ├── templates.ts    page templates, built from the active theme
 │   │   ├── factory.ts      element/page/document construction
+│   │   ├── uploads.ts      upload plumbing shared by the panel and canvas drops
 │   │   ├── api.ts          Worker API client
 │   │   └── persistence.ts  debounced autosave with a local fallback
 │   ├── store/editor.ts     editor state, history, selection, ordering
@@ -97,10 +118,11 @@ Deployment — including the resources already provisioned — is documented in
 ## Tests
 
 `tests/e2e.mjs` drives a real browser against the app: it exercises resize,
-rotate, marquee select, snapping, undo, page add/duplicate, image upload and the
-reader, then builds an offline export, opens it from `file://` **with every
-http(s) request aborted**, and checks that the pages render, the bundled image
-loads and the page turn works.
+rotate, marquee select, snapping, undo, page add/duplicate, image upload,
+theme switching, video placement, drag-and-drop and the reader — then builds an
+offline export, opens it from `file://` **with every http(s) request aborted**,
+and checks that the pages render, the bundled image and video load, and the page
+turn works.
 
 ```bash
 npm run build
@@ -133,6 +155,8 @@ Set `CHROME_PATH` to reuse a Chromium that is already on the machine, and
   to an account. It stops one browser reading another's projects; it is not
   authentication. See the note at the end of `docs/DEPLOY.md`.
 - **Uploads are capped at 25 MB** per file, images and MP4/WebM only.
+- **Video autoplay depends on the viewer's browser.** Autoplay forces muted,
+  because that is the only way browsers allow it.
 - **Font embedding needs network at export time.** If a webfont cannot be
   fetched the export falls back to a system stack rather than failing.
 - Text elements hold plain text with one style per element — no rich-text runs
