@@ -164,6 +164,9 @@ export function Reader({ doc, onClose }: { doc: FlipDoc; onClose?: () => void })
   }, [isDouble, settings.width, settings.height])
 
   const bookWidth = isDouble ? settings.width * 2 : settings.width
+  // Page indices on show right now, so only those replay their animations.
+  const visibleRight = 2 * cursor
+  const visibleLeft = 2 * cursor - 1
 
   return (
     <div
@@ -209,6 +212,13 @@ export function Reader({ doc, onClose }: { doc: FlipDoc; onClose?: () => void })
                   >
                     <div className="reader-face front">
                       <PageView
+                        // Remounting a page as it becomes visible replays its
+                        // entrance animations, matching the exported viewer.
+                        key={
+                          2 * k === visibleRight
+                            ? `${pages[2 * k].id}-${cursor}`
+                            : pages[2 * k].id
+                        }
                         page={pages[2 * k]}
                         settings={settings}
                         resolve={resolve}
@@ -220,6 +230,11 @@ export function Reader({ doc, onClose }: { doc: FlipDoc; onClose?: () => void })
                       {pages[2 * k + 1] && (
                         <>
                           <PageView
+                            key={
+                              2 * k + 1 === visibleLeft
+                                ? `${pages[2 * k + 1].id}-${cursor}`
+                                : pages[2 * k + 1].id
+                            }
                             page={pages[2 * k + 1]}
                             settings={settings}
                             resolve={resolve}

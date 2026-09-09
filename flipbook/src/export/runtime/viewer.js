@@ -131,10 +131,14 @@
       var animated = node.querySelectorAll('[data-anim]')
       for (var i = 0; i < animated.length; i++) {
         var a = animated[i]
-        a.style.animation = 'none'
+        // Only the name is toggled: clearing the `animation` shorthand would
+        // wipe the duration and delay the exporter wrote inline, and the
+        // element would never animate again.
+        var name = a.style.animationName
+        a.style.animationName = 'none'
         // Force a reflow so the animation restarts from the first frame.
         void a.offsetWidth
-        a.style.animation = ''
+        a.style.animationName = name
       }
     })
   }

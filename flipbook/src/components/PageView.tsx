@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react'
 import type { DocSettings, FlipPage } from '../shared/types'
 import { pageBackgroundStyle, paperTextureStyle, type SrcResolver } from '../lib/style'
+import { resolvePageAnimations } from '../lib/animation'
 import { ElementView } from './ElementView'
 
 interface Props {
@@ -26,6 +27,8 @@ export function PageView({
   children,
 }: Props) {
   const paper = paperTextureStyle(settings.paper, resolve)
+  // Resolved once per page so every element shares the same sequence.
+  const timings = animate ? resolvePageAnimations(page) : null
 
   return (
     <div
@@ -47,6 +50,7 @@ export function PageView({
           element={el}
           resolve={resolve}
           animate={animate}
+          timing={timings?.get(el.id)}
           suppressed={editingTextId === el.id}
         />
       ))}

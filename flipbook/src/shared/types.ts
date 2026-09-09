@@ -59,11 +59,31 @@ export type ElementLink =
   | { kind: 'url'; url: string }
   | { kind: 'page'; pageIndex: number }
 
-export type AnimationKind = 'none' | 'fade' | 'slide-up' | 'slide-left' | 'zoom' | 'pop'
+export type AnimationKind =
+  | 'none'
+  | 'fade'
+  | 'slide-up'
+  | 'slide-down'
+  | 'slide-left'
+  | 'slide-right'
+  | 'zoom'
+  | 'pop'
+  | 'flip'
+  | 'blur'
+
+/**
+ * When an element's entrance begins.
+ *
+ * `with-page` starts as the page appears; `after-previous` waits for the
+ * previous animated element on the page to finish, which is what makes a
+ * sequence without anyone hand-tuning milliseconds.
+ */
+export type AnimationStart = 'with-page' | 'after-previous'
 
 export interface ElementAnimation {
   kind: AnimationKind
-  /** Milliseconds. */
+  start: AnimationStart
+  /** Extra offset in milliseconds, on top of whatever `start` implies. */
   delay: number
   duration: number
 }

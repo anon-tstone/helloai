@@ -6,6 +6,7 @@
  * single source of truth shared by both renderers.
  */
 import type { DocSettings, FlipDoc, FlipElement, FlipPage } from '../shared/types'
+import { resolvePageAnimations, type ResolvedAnimation } from '../lib/animation'
 import {
   ANIMATION_KEYFRAMES,
   animationCss,
@@ -40,8 +41,12 @@ function styleAttr(props: Record<string, string | number>): string {
   return css ? ` style="${escapeHtml(css)}"` : ''
 }
 
-export function renderElementHtml(el: FlipElement, resolve: SrcResolver): string {
-  const anim = animationCss(el)
+export function renderElementHtml(
+  el: FlipElement,
+  resolve: SrcResolver,
+  timing?: ResolvedAnimation,
+): string {
+  const anim = animationCss(el, timing)
   const frame = { ...frameStyle(el), ...anim }
   const animAttr = el.animation && el.animation.kind !== 'none' ? ' data-anim="1"' : ''
   const inner = renderInnerHtml(el, resolve)
@@ -138,9 +143,10 @@ export function renderPageHtml(
   }
   const paper = paperTextureStyle(settings.paper, resolve)
   const paperLayer = paper ? `<div class="fb-paper"${styleAttr(paper)}></div>` : ''
+  const timings = resolvePageAnimations(page)
   const elements = page.elements
     .filter((el) => !el.hidden)
-    .map((el) => renderElementHtml(el, resolve))
+    .map((el) => renderElementHtml(el, resolve, timings.get(el.id)))
     .join('')
   return `<div class="fb-page" id="page-${index + 1}"${styleAttr(style)}>${paperLayer}${elements}</div>`
 }

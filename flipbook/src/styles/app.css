@@ -647,3 +647,7 @@ input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px;
   overflow: hidden;
 }
 .paper-swatch > span { display: block; }
+
+/* --- animation picker ---------------------------------------------------- */
+.anim-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; margin-bottom: 10px; }
+.anim-grid button { border: 1px solid var(--line); font-size: 12px; padding: 7px 6px; }

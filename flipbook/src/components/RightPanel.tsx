@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useEditor, useSelectedElements } from '../store/editor'
 import type {
-  AnimationKind,
+  ElementAnimation,
   ImageFit,
   PageBackground,
   FlipElement,
@@ -12,6 +12,12 @@ import type {
   VideoElement,
 } from '../shared/types'
 import { fillToCss, resolveViewerBackground } from '../lib/style'
+import {
+  ANIMATION_CHOICES,
+  DEFAULT_ANIMATION,
+  SPEED_PRESETS,
+  sequenceForPage,
+} from '../lib/animation'
 
 const FONTS = [
   'Inter',
@@ -25,7 +31,6 @@ const FONTS = [
   'Kanit',
 ]
 
-const ANIMATIONS: AnimationKind[] = ['none', 'fade', 'slide-up', 'slide-left', 'zoom', 'pop']
 
 export function RightPanel() {
   const [tab, setTab] = useState<'design' | 'layers' | 'document'>('design')
@@ -154,47 +159,7 @@ function Inspector({ selected }: { selected: FlipElement[] }) {
         )}
       </Group>
 
-      <Group title="Animation">
-        <label className="field">
-          <span>Entrance</span>
-          <select
-            value={first.animation?.kind ?? 'none'}
-            onChange={(e) =>
-              patch(() => ({
-                animation: {
-                  kind: e.target.value as AnimationKind,
-                  delay: first.animation?.delay ?? 0,
-                  duration: first.animation?.duration ?? 600,
-                },
-              }))
-            }
-          >
-            {ANIMATIONS.map((a) => (
-              <option key={a} value={a}>
-                {a}
-              </option>
-            ))}
-          </select>
-        </label>
-        {first.animation && first.animation.kind !== 'none' && (
-          <div className="grid-2">
-            <NumberField
-              label="Delay ms"
-              value={first.animation.delay}
-              min={0}
-              step={50}
-              onChange={(v) => patch((el) => ({ animation: { ...el.animation!, delay: v } }))}
-            />
-            <NumberField
-              label="Duration ms"
-              value={first.animation.duration}
-              min={50}
-              step={50}
-              onChange={(v) => patch((el) => ({ animation: { ...el.animation!, duration: v } }))}
-            />
-          </div>
-        )}
-      </Group>
+      <AnimationFields selected={selected} />
 
       <Group title="Link">
         <label className="field">
@@ -212,6 +177,107 @@ function Inspector({ selected }: { selected: FlipElement[] }) {
         </label>
       </Group>
     </div>
+  )
+}
+
+/**
+ * Animation controls, kept to three decisions: which effect, when it starts,
+ * and how fast. Sequencing is handled by `lib/animation.ts`, so nobody has to
+ * work out millisecond delays by hand.
+ */
+function AnimationFields({ selected }: { selected: FlipElement[] }) {
+  const update = useEditor((s) => s.updateElements)
+  const page = useEditor((s) => s.doc.pages[s.pageIndex])
+  const playAnimation = useEditor((s) => s.playAnimation)
+  const ids = selected.map((e) => e.id)
+  const current = selected[0].animation ?? { ...DEFAULT_ANIMATION, kind: 'none' as const }
+
+  const patch = (next: Partial<ElementAnimation>) =>
+    update(ids, (el) => ({
+      animation: { ...DEFAULT_ANIMATION, ...el.animation, ...next },
+    }))
+
+  const animateWholePage = () => {
+    if (!page) return
+    const kind = current.kind === 'none' ? 'fade' : current.kind
+    const sequence = sequenceForPage(page.elements, kind, current.duration)
+    update(
+      page.elements.map((el) => el.id),
+      (el) => ({ animation: sequence.get(el.id) }),
+    )
+    playAnimation()
+  }
+
+  return (
+    <Group title="Animation">
+      <div className="anim-grid">
+        {ANIMATION_CHOICES.map((choice) => (
+          <button
+            key={choice.id}
+            className={current.kind === choice.id ? 'active' : ''}
+            onClick={() => patch({ kind: choice.id })}
+          >
+            {choice.label}
+          </button>
+        ))}
+      </div>
+
+      {current.kind !== 'none' && (
+        <>
+          <label className="field">
+            <span>Starts</span>
+            <div className="segmented">
+              <button
+                className={current.start === 'with-page' ? 'active' : ''}
+                onClick={() => patch({ start: 'with-page' })}
+              >
+                With page
+              </button>
+              <button
+                className={current.start === 'after-previous' ? 'active' : ''}
+                onClick={() => patch({ start: 'after-previous' })}
+              >
+                After previous
+              </button>
+            </div>
+          </label>
+
+          <label className="field">
+            <span>Speed</span>
+            <div className="segmented">
+              {SPEED_PRESETS.map((preset) => (
+                <button
+                  key={preset.id}
+                  className={current.duration === preset.ms ? 'active' : ''}
+                  onClick={() => patch({ duration: preset.ms })}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+          </label>
+
+          <NumberField
+            label="Extra wait (ms)"
+            value={current.delay}
+            min={0}
+            step={50}
+            onChange={(v) => patch({ delay: v })}
+          />
+        </>
+      )}
+
+      <button className="block" onClick={playAnimation}>
+        ▶ Play on this page
+      </button>
+      <button className="block" onClick={animateWholePage}>
+        Animate every element in order
+      </button>
+      <p className="hint">
+        &ldquo;After previous&rdquo; waits for the element below it in Layers, so
+        reordering layers re-times the sequence.
+      </p>
+    </Group>
   )
 }
 

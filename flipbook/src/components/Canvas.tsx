@@ -19,6 +19,7 @@ import {
   type SnapGuide,
 } from '../lib/geometry'
 import { createLine, createShape, createText, elementForAsset } from '../lib/factory'
+import { pageAnimationDuration, pageHasAnimation } from '../lib/animation'
 import { isSupportedUpload, uploadFile } from '../lib/uploads'
 import { PageView } from './PageView'
 
@@ -59,6 +60,7 @@ export function Canvas() {
   const showGrid = useEditor((s) => s.showGrid)
   const snapEnabled = useEditor((s) => s.snapEnabled)
   const editingTextId = useEditor((s) => s.editingTextId)
+  const animationNonce = useEditor((s) => s.animationNonce)
 
   const viewportRef = useRef<HTMLDivElement>(null)
   const pageRef = useRef<HTMLDivElement>(null)
@@ -66,6 +68,8 @@ export function Canvas() {
   const [guides, setGuides] = useState<SnapGuide[]>([])
   const [spaceHeld, setSpaceHeld] = useState(false)
   const [dropActive, setDropActive] = useState(false)
+  /** Non-null while the page's entrance animations play on the canvas. */
+  const [playing, setPlaying] = useState<number | null>(null)
   /** Live touch points, so a second finger turns the drag into a pinch. */
   const pointers = useRef(new Map<number, Point>())
   const pinch = useRef<{ distance: number; zoom: number; midpoint: Point; pan: Point } | null>(null)
@@ -121,6 +125,21 @@ export function Canvas() {
     useEditor.getState().zoomToFit({ width: el.clientWidth, height: el.clientHeight })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // -- animation preview ----------------------------------------------------
+  // Remounting the page with `animate` restarts the CSS animations from frame
+  // one; it stops on its own once the page's sequence has finished.
+  useEffect(() => {
+    if (animationNonce === 0) return
+    const current = useEditor.getState().doc.pages[useEditor.getState().pageIndex]
+    if (!current || !pageHasAnimation(current)) return
+    setPlaying(animationNonce)
+    const timer = window.setTimeout(
+      () => setPlaying(null),
+      pageAnimationDuration(current) + 200,
+    )
+    return () => window.clearTimeout(timer)
+  }, [animationNonce])
 
   // -- space bar panning ----------------------------------------------------
   useEffect(() => {
@@ -518,9 +537,11 @@ export function Canvas() {
           onDrop={(e) => void handleDrop(e)}
         >
           <PageView
+            key={playing ?? 'static'}
             page={page}
             settings={doc.settings}
             resolve={resolve}
+            animate={playing !== null}
             editingTextId={editingTextId}
             style={{ boxShadow: '0 24px 80px rgba(0,0,0,.45)' }}
           />

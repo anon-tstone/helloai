@@ -5,6 +5,7 @@
  * but they compute *appearance* here, so what you see in the editor is exactly
  * what an exported offline flipbook renders.
  */
+import type { ResolvedAnimation } from './animation'
 import type {
   DocSettings,
   Fill,
@@ -304,13 +305,22 @@ export function kebab(key: string): string {
   return key.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`)
 }
 
-export function animationCss(el: FlipElement): CssProps {
+/**
+ * Entrance animation for an element.
+ *
+ * `timing` comes from `resolvePageAnimations`, which works out when each
+ * element starts from the page's sequence; without it the element's own
+ * declared delay is used as-is.
+ */
+export function animationCss(el: FlipElement, timing?: ResolvedAnimation): CssProps {
   const a = el.animation
   if (!a || a.kind === 'none') return {}
+  const duration = timing?.durationMs ?? a.duration
+  const delay = timing?.delayMs ?? a.delay
   return {
     animationName: `fb-${a.kind}`,
-    animationDuration: `${a.duration}ms`,
-    animationDelay: `${a.delay}ms`,
+    animationDuration: `${duration}ms`,
+    animationDelay: `${delay}ms`,
     animationFillMode: 'both',
     animationTimingFunction: 'cubic-bezier(.2,.7,.3,1)',
   }
@@ -323,4 +333,8 @@ export const ANIMATION_KEYFRAMES = `
 @keyframes fb-slide-left { from { opacity: 0; translate: 40px 0 } to { opacity: inherit; translate: 0 0 } }
 @keyframes fb-zoom { from { opacity: 0; scale: .85 } to { opacity: inherit; scale: 1 } }
 @keyframes fb-pop { 0% { opacity: 0; scale: .6 } 70% { scale: 1.06 } 100% { opacity: inherit; scale: 1 } }
+@keyframes fb-slide-down { from { opacity: 0; translate: 0 -40px } to { opacity: inherit; translate: 0 0 } }
+@keyframes fb-slide-right { from { opacity: 0; translate: -40px 0 } to { opacity: inherit; translate: 0 0 } }
+@keyframes fb-flip { from { opacity: 0; transform: perspective(800px) rotateX(70deg) } to { opacity: inherit; transform: perspective(800px) rotateX(0) } }
+@keyframes fb-blur { from { opacity: 0; filter: blur(14px) } to { opacity: inherit; filter: blur(0) } }
 `

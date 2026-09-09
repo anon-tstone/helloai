@@ -357,6 +357,53 @@ check('paper strength and scale reach the page', await page.evaluate(() => {
   return cs.opacity === '0.35' && cs.backgroundImage.includes('10px')
 }))
 
+// --- animation -------------------------------------------------------------
+console.log('\nAnimation')
+await page.click('.right-tabs button:has-text("Layers")')
+await page.locator('.layer').first().click()
+await page.click('.right-tabs button:has-text("Design")')
+check('the effect picker offers named effects',
+  (await page.locator('.anim-grid button').count()) === 10)
+await page.click('.anim-grid button:has-text("Rise")')
+check('choosing an effect reveals the start and speed controls',
+  (await page.locator('.field:has(span:text-is("Starts"))').count()) === 1 &&
+  (await page.locator('.field:has(span:text-is("Speed"))').count()) === 1)
+
+await page.click('button:has-text("Animate every element in order")')
+await page.waitForTimeout(300)
+await page.click('button:has-text("Play on this page")')
+await page.waitForTimeout(120)
+check('Play previews the sequence on the canvas', await page.evaluate(
+  () => getComputedStyle(document.querySelector('.canvas-page-wrap .fb-el')).animationName) !== 'none')
+// Poll rather than guess: the sequence length depends on how many elements
+// this page happens to be carrying by now.
+const wentStatic = await page
+  .waitForFunction(
+    () =>
+      [...document.querySelectorAll('.canvas-page-wrap .fb-el')].every(
+        (el) => getComputedStyle(el).animationName === 'none',
+      ),
+    null,
+    { timeout: 8000 },
+  )
+  .then(() => true)
+  .catch(() => false)
+check('the canvas goes static once the sequence ends', wentStatic)
+
+await page.click('button:has-text("Preview")')
+await page.waitForSelector('.reader-book')
+// Delays are per page, so look for a page whose animated elements step
+// forward in time — reading every face at once would mix in unanimated ones.
+const sequencedPage = await page.evaluate(() =>
+  [...document.querySelectorAll('.reader-face')].some((face) => {
+    const delays = [...face.querySelectorAll('.fb-el')]
+      .filter((el) => getComputedStyle(el).animationName !== 'none')
+      .map((el) => parseFloat(getComputedStyle(el).animationDelay))
+    return delays.length >= 2 && delays.every((d, i) => i === 0 || d > delays[i - 1])
+  }))
+check('a page plays its elements in sequence, with no hand-typed delays', sequencedPage)
+await page.click('button:has-text("Close preview")')
+
 // --- viewer backdrop -------------------------------------------------------
 console.log('\nViewer backdrop')
 await page.click('.right-tabs button:has-text("Document")')
@@ -463,6 +510,15 @@ const bookBox = await op.evaluate(() => {
   const r = document.querySelector('.fb-book').getBoundingClientRect()
   return { cx: Math.round(r.x + r.width / 2), cy: Math.round(r.y + r.height / 2) }
 })
+// Entrance timings must survive into the export — the runtime used to wipe
+// them when it reset the animation shorthand.
+const offlineDelays = await op.evaluate(() =>
+  [...document.querySelectorAll('.fb-face .fb-el[data-anim]')]
+    .map((el) => parseFloat(getComputedStyle(el).animationDelay)))
+check('the exported book carries the computed animation sequence',
+  offlineDelays.length >= 2 && offlineDelays.some((d) => d > 0),
+  offlineDelays.join('s, ') + 's')
+
 check('the offline book keeps its paper texture', await op.evaluate(() => {
   const el = document.querySelector('.fb-face .fb-paper')
   return Boolean(el && getComputedStyle(el).backgroundImage !== 'none')

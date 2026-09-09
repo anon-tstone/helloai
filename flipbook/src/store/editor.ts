@@ -103,6 +103,9 @@ export interface EditorState {
   toggleSnap: () => void
 
   // -- persistence ----------------------------------------------------------
+  /** Bumped to replay the current page's entrance animations on the canvas. */
+  animationNonce: number
+  playAnimation: () => void
   setSaveState: (state: SaveState, error?: string | null) => void
   setProjectId: (id: string | null) => void
 }
@@ -167,6 +170,7 @@ export const useEditor = create<EditorState>((set, get) => {
     clipboard: [],
     saveState: 'idle',
     lastError: null,
+    animationNonce: 0,
 
     loadDoc: (doc, projectId = null) =>
       set({
@@ -586,6 +590,8 @@ export const useEditor = create<EditorState>((set, get) => {
 
     toggleGrid: () => set((s) => ({ showGrid: !s.showGrid })),
     toggleSnap: () => set((s) => ({ snapEnabled: !s.snapEnabled })),
+
+    playAnimation: () => set((s) => ({ animationNonce: s.animationNonce + 1 })),
 
     setSaveState: (state, error = null) => set({ saveState: state, lastError: error }),
     setProjectId: (id) => set({ projectId: id }),

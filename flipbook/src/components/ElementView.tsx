@@ -1,5 +1,6 @@
 import { memo, type CSSProperties } from 'react'
 import type { FlipElement } from '../shared/types'
+import type { ResolvedAnimation } from '../lib/animation'
 import {
   animationCss,
   frameStyle,
@@ -18,6 +19,8 @@ interface Props {
   resolve: SrcResolver
   /** Play entrance animations (reader/export preview), off inside the editor. */
   animate?: boolean
+  /** Sequenced timing from `resolvePageAnimations`, when animating. */
+  timing?: ResolvedAnimation
   /** Hidden while the inline text editor takes over the element. */
   suppressed?: boolean
 }
@@ -26,10 +29,16 @@ interface Props {
  * Renders one element exactly as the offline export will render it: both use
  * the style helpers in `lib/style`.
  */
-function ElementViewImpl({ element, resolve, animate = false, suppressed = false }: Props) {
+function ElementViewImpl({
+  element,
+  resolve,
+  animate = false,
+  suppressed = false,
+  timing,
+}: Props) {
   const style = {
     ...frameStyle(element),
-    ...(animate ? animationCss(element) : {}),
+    ...(animate ? animationCss(element, timing) : {}),
     ...(suppressed ? { visibility: 'hidden' as const } : {}),
   } as CSSProperties
 
