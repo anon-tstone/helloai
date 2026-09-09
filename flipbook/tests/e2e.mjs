@@ -250,6 +250,20 @@ await page.waitForTimeout(200)
 check('undo reverts a theme change',
   (await page.locator('.theme-card.active:has-text("Midnight")').count()) === 1)
 
+// --- viewer backdrop -------------------------------------------------------
+console.log('\nViewer backdrop')
+await page.click('.right-tabs button:has-text("Document")')
+await page.locator('.field:has(span:text-is("Backdrop style")) select').selectOption('linear')
+await page.locator('.field:has(span:text-is("From")) input').first().fill('#ff8800')
+await page.locator('.field:has(span:text-is("To")) input').first().fill('#220044')
+await page.waitForTimeout(200)
+await page.click('button:has-text("Preview")')
+await page.waitForSelector('.reader-book')
+check('the reader renders a gradient backdrop', (await page.evaluate(
+  () => getComputedStyle(document.querySelector('.reader')).backgroundImage)).includes('linear-gradient'))
+await page.click('button:has-text("Close preview")')
+await page.click('.right-tabs button:has-text("Design")')
+
 // --- video and drag-and-drop ------------------------------------------------
 console.log('\nVideo and drag-and-drop')
 await page.click('.left-tabs button:has-text("Uploads")')
@@ -342,6 +356,9 @@ const bookBox = await op.evaluate(() => {
   const r = document.querySelector('.fb-book').getBoundingClientRect()
   return { cx: Math.round(r.x + r.width / 2), cy: Math.round(r.y + r.height / 2) }
 })
+check('the offline export carries the gradient backdrop',
+  (await op.evaluate(() => getComputedStyle(document.body).backgroundImage)).includes('linear-gradient'))
+
 check('the book is centred in the viewport',
   Math.abs(bookBox.cx - 700) < 6 && Math.abs(bookBox.cy - 450) < 6, JSON.stringify(bookBox))
 

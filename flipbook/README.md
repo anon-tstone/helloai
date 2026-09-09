@@ -38,6 +38,8 @@ server and no internet.
 - Thumbnail strip with live page previews
 - Drag to reorder, duplicate, delete, rename inline
 - Page backgrounds: solid, gradient, or image — apply to one page or all
+- Reader backdrop behind the book: solid, gradient or an image, bundled into
+  offline exports along with everything else
 
 **Reading**
 - Two-page book spread with a 3D page turn, or single-page slide/fade

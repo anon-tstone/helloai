@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { useEditor, useSelectedElements } from '../store/editor'
 import type {
   AnimationKind,
+  ImageFit,
+  PageBackground,
   FlipElement,
   ImageElement,
   LineElement,
@@ -9,7 +11,7 @@ import type {
   TextElement,
   VideoElement,
 } from '../shared/types'
-import { fillToCss } from '../lib/style'
+import { fillToCss, resolveViewerBackground } from '../lib/style'
 
 const FONTS = [
   'Inter',
@@ -682,14 +684,7 @@ function DocumentPanel() {
           step={50}
           onChange={(v) => updateSettings({ flipDurationMs: v })}
         />
-        <label className="field">
-          <span>Viewer background</span>
-          <input
-            type="color"
-            value={toHex(settings.backgroundColor)}
-            onChange={(e) => updateSettings({ backgroundColor: e.target.value })}
-          />
-        </label>
+        <ViewerBackgroundFields />
         <label className="field">
           <span>Show page numbers</span>
           <input
@@ -700,6 +695,144 @@ function DocumentPanel() {
         </label>
       </Group>
     </div>
+  )
+}
+
+/**
+ * The backdrop behind the book while reading — solid, gradient or an image.
+ * `backgroundColor` is kept in step so older readers and the theme swatch
+ * still have a sensible solid to fall back to.
+ */
+function ViewerBackgroundFields() {
+  const settings = useEditor((s) => s.doc.settings)
+  const assets = useEditor((s) => s.doc.assets)
+  const updateSettings = useEditor((s) => s.updateSettings)
+  const background = resolveViewerBackground(settings)
+  const fill = background.fill
+
+  const setFill = (next: PageBackground['fill']) =>
+    updateSettings({
+      viewerBackground: { ...background, fill: next },
+      backgroundColor:
+        next.kind === 'solid' ? next.color : next.kind === 'linear' ? next.to : '#000000',
+    })
+
+  const images = Object.values(assets).filter((a) => a.mime.startsWith('image/'))
+
+  return (
+    <>
+      <label className="field">
+        <span>Backdrop style</span>
+        <select
+          value={fill.kind}
+          onChange={(e) => {
+            const kind = e.target.value as PageBackground['fill']['kind']
+            if (kind === 'linear') {
+              setFill({
+                kind: 'linear',
+                from: fill.kind === 'solid' ? fill.color : '#2a2b36',
+                to: '#0c0d12',
+                angle: 180,
+              })
+            } else {
+              setFill({
+                kind: 'solid',
+                color: fill.kind === 'linear' ? fill.to : settings.backgroundColor,
+              })
+            }
+          }}
+        >
+          <option value="solid">Solid colour</option>
+          <option value="linear">Gradient</option>
+        </select>
+      </label>
+
+      {fill.kind === 'solid' && (
+        <label className="field">
+          <span>Colour</span>
+          <input
+            type="color"
+            value={toHex(fill.color)}
+            onChange={(e) => setFill({ kind: 'solid', color: e.target.value })}
+          />
+        </label>
+      )}
+
+      {fill.kind === 'linear' && (
+        <div className="grid-2">
+          <label className="field">
+            <span>From</span>
+            <input
+              type="color"
+              value={toHex(fill.from)}
+              onChange={(e) => setFill({ ...fill, from: e.target.value })}
+            />
+          </label>
+          <label className="field">
+            <span>To</span>
+            <input
+              type="color"
+              value={toHex(fill.to)}
+              onChange={(e) => setFill({ ...fill, to: e.target.value })}
+            />
+          </label>
+          <NumberField
+            label="Angle"
+            value={fill.angle}
+            onChange={(v) => setFill({ ...fill, angle: v })}
+          />
+        </div>
+      )}
+
+      <label className="field">
+        <span>Backdrop image</span>
+        <select
+          value={background.image?.src ?? ''}
+          onChange={(e) =>
+            updateSettings({
+              viewerBackground: {
+                ...background,
+                image: e.target.value
+                  ? { src: e.target.value, fit: background.image?.fit ?? 'cover', opacity: 1 }
+                  : undefined,
+              },
+            })
+          }
+        >
+          <option value="">None</option>
+          {images.map((a) => (
+            <option key={a.id} value={`asset:${a.id}`}>
+              {a.name}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      {background.image && (
+        <label className="field">
+          <span>Image fit</span>
+          <select
+            value={background.image.fit}
+            onChange={(e) =>
+              updateSettings({
+                viewerBackground: {
+                  ...background,
+                  image: { ...background.image!, fit: e.target.value as ImageFit },
+                },
+              })
+            }
+          >
+            <option value="cover">Cover</option>
+            <option value="contain">Contain</option>
+            <option value="fill">Stretch</option>
+          </select>
+        </label>
+      )}
+      <p className="hint">
+        Upload images on the left first; the backdrop is bundled into offline
+        exports.
+      </p>
+    </>
   )
 }
 

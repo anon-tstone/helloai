@@ -6,6 +6,7 @@
  * what an exported offline flipbook renders.
  */
 import type {
+  DocSettings,
   Fill,
   FlipDoc,
   FlipElement,
@@ -61,6 +62,18 @@ export function pageBackgroundStyle(bg: PageBackground, resolve: SrcResolver): C
 }
 
 /** Absolute frame of an element inside a page: position, size, rotation. */
+/**
+ * The backdrop behind the book. Documents saved before `viewerBackground`
+ * existed only carry a solid colour, so fall back to it.
+ */
+export function resolveViewerBackground(settings: DocSettings): PageBackground {
+  return settings.viewerBackground ?? { fill: { kind: 'solid', color: settings.backgroundColor } }
+}
+
+export function viewerBackgroundStyle(settings: DocSettings, resolve: SrcResolver): CssProps {
+  return pageBackgroundStyle(resolveViewerBackground(settings), resolve)
+}
+
 export function frameStyle(el: FlipElement): CssProps {
   const style: CssProps = {
     position: 'absolute',

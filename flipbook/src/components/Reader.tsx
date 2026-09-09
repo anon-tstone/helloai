@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FlipDoc } from '../shared/types'
-import { makeResolver } from '../lib/style'
+import { makeResolver, viewerBackgroundStyle } from '../lib/style'
 import { PageView } from './PageView'
 
 /**
@@ -54,7 +54,10 @@ export function Reader({ doc, onClose }: { doc: FlipDoc; onClose?: () => void })
   const bookWidth = isDouble ? settings.width * 2 : settings.width
 
   return (
-    <div className="reader" style={{ background: settings.backgroundColor }}>
+    <div
+      className="reader"
+      style={viewerBackgroundStyle(settings, resolve) as React.CSSProperties}
+    >
       <div className="reader-stage" ref={stageRef}>
         <div
           className="reader-book"

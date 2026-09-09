@@ -175,7 +175,12 @@ export interface DocSettings {
   /** Page-turn animation used by the reader and the offline export. */
   flipStyle: 'curl' | 'slide' | 'fade'
   flipDurationMs: number
+  /** Solid backdrop behind the book. Kept for documents saved before
+   *  `viewerBackground` existed, and used as its fallback. */
   backgroundColor: string
+  /** Backdrop behind the book in the reader and the offline export: solid,
+   *  gradient or image. Falls back to `backgroundColor` when unset. */
+  viewerBackground?: PageBackground
   showPageNumbers: boolean
   /** Fonts referenced by the document, embedded into the offline export. */
   fonts: string[]

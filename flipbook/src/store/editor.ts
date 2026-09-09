@@ -239,6 +239,13 @@ export const useEditor = create<EditorState>((set, get) => {
             ...d.settings,
             themeId: theme.id,
             backgroundColor: theme.viewerBackground,
+            // A backdrop image the author chose survives the theme change.
+            viewerBackground: {
+              fill: { kind: 'solid', color: theme.viewerBackground },
+              ...(d.settings.viewerBackground?.image
+                ? { image: d.settings.viewerBackground.image }
+                : {}),
+            },
             flipStyle: theme.flipStyle,
           },
           pages: d.pages.map((page) => ({

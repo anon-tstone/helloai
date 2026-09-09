@@ -9,7 +9,7 @@
 html, body {
   margin: 0;
   height: 100%;
-  background: var(--fb-bg, #1b1c22);
+  /* The backdrop is emitted per-document by the exporter, after this file. */
   font-family: Inter, "Helvetica Neue", Arial, "Noto Sans Thai", sans-serif;
   overflow: hidden;
   -webkit-text-size-adjust: 100%;

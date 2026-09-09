@@ -15,6 +15,7 @@ import {
   imageStyle,
   lineGeometry,
   pageBackgroundStyle,
+  viewerBackgroundStyle,
   shapeBoxStyle,
   shapeIsBox,
   shapePath,
@@ -168,7 +169,7 @@ ${opts.extraHead ?? ''}
 <style>
 ${viewerCss}
 ${ANIMATION_KEYFRAMES}
-:root { --fb-bg: ${escapeHtml(doc.settings.backgroundColor)}; }
+body { ${escapeHtml(cssPropsToString(viewerBackgroundStyle(doc.settings, opts.resolve)))}; background-attachment: fixed; }
 </style>
 </head>
 <body>
