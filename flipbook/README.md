@@ -34,6 +34,12 @@ server and no internet.
 - Video: autoplay/loop/muted/controls and a poster image, bundled into exports
 - Page templates (cover, article, two-column, hero, quote) and colour palettes
 
+**Touch**
+- Built on pointer events, so every editor gesture — move, resize, rotate,
+  marquee select — works with a finger or a stylus
+- Pinch to zoom and two-finger pan on the canvas; the wheel zooms at the cursor
+- Drag-to-turn works the same in the editor preview and the exported book
+
 **Pages**
 - Thumbnail strip with live page previews
 - Drag to reorder, duplicate, delete, rename inline
@@ -46,7 +52,9 @@ server and no internet.
 
 **Reading**
 - Two-page book spread with a 3D page turn, or single-page slide/fade
-- Keyboard, click-the-edge and swipe navigation, thumbnail jump, fullscreen
+- **Drag a page to turn it** — the sheet follows your finger or pointer, and on
+  release either completes the turn or springs back; a quick flick counts too
+- Keyboard, tap-the-edge, thumbnail jump, fullscreen
 - Publish to a public `/v/<slug>` link that stays in sync with every save
 
 **Offline build**
@@ -145,7 +153,8 @@ Set `CHROME_PATH` to reuse a Chromium that is already on the machine, and
 | --- | --- |
 | `V` `H` `T` `R` `O` `L` | select, pan, text, rectangle, ellipse, line |
 | `Space` + drag | pan the canvas |
-| `Ctrl`/`Cmd` + scroll | zoom |
+| `Ctrl`/`Cmd` + scroll | zoom at the cursor |
+| Pinch / two-finger drag | zoom and pan (touch) |
 | `Ctrl+Z` / `Ctrl+Shift+Z` | undo / redo |
 | `Ctrl+C` `Ctrl+V` `Ctrl+D` | copy, paste, duplicate |
 | `Ctrl+G` / `Ctrl+Shift+G` | group / ungroup |

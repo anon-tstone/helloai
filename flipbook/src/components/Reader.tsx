@@ -1,11 +1,19 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { FlipDoc } from '../shared/types'
 import { makeResolver, viewerBackgroundStyle } from '../lib/style'
+import {
+  DRAG_SLOP_PX,
+  shouldCommitTurn,
+  turnAngle,
+  turnProgress,
+  turnShadow,
+  type TurnDirection,
+} from '../lib/pageTurn'
 import { PageView } from './PageView'
 
 /**
- * In-app flipbook reader. Mirrors the offline viewer's behaviour (sheet stack,
- * page turns, keyboard and swipe navigation) so previewing matches the export.
+ * In-app flipbook reader. Mirrors the offline viewer's behaviour — sheet stack,
+ * drag-to-turn, keyboard, tap zones — so previewing matches the exported book.
  */
 export function Reader({ doc, onClose }: { doc: FlipDoc; onClose?: () => void }) {
   const { settings, pages } = doc
@@ -18,7 +26,111 @@ export function Reader({ doc, onClose }: { doc: FlipDoc; onClose?: () => void })
   const stageRef = useRef<HTMLDivElement>(null)
   const resolve = useMemo(() => makeResolver(doc), [doc])
 
+  /** Live drag state: which sheet is being carried, and how far. */
+  const [turn, setTurn] = useState<{
+    sheet: number
+    direction: TurnDirection
+    progress: number
+  } | null>(null)
+  const gesture = useRef<{
+    pointerId: number
+    startX: number
+    lastX: number
+    lastT: number
+    velocity: number
+    direction: TurnDirection
+    sheet: number
+    active: boolean
+  } | null>(null)
+
   const go = (delta: number) => setCursor((c) => Math.max(0, Math.min(c + delta, maxCursor)))
+
+  const pageWidthPx = settings.width * scale
+
+  /**
+   * Begin a drag. Which sheet moves depends on which half was grabbed: the
+   * right-hand page turns forward, the left-hand page turns back.
+   */
+  const onPointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      if (e.button !== 0 && e.pointerType === 'mouse') return
+      const book = e.currentTarget.getBoundingClientRect()
+      const grabbedRightHalf = e.clientX - book.left > book.width / 2
+      const direction: TurnDirection = grabbedRightHalf ? 'forward' : 'back'
+
+      // Only start a drag when the turn has somewhere to go.
+      const next = cursor + (direction === 'forward' ? 1 : -1)
+      if (next < 0 || next > maxCursor) return
+
+      // In a book it is the sheet being lifted that moves; on single pages the
+      // page under the finger slides.
+      const sheet = isDouble ? (direction === 'forward' ? cursor : cursor - 1) : cursor
+      if (sheet < 0 || sheet >= (isDouble ? sheetCount : pages.length)) return
+      gesture.current = {
+        pointerId: e.pointerId,
+        startX: e.clientX,
+        lastX: e.clientX,
+        lastT: performance.now(),
+        velocity: 0,
+        direction,
+        sheet,
+        active: false,
+      }
+      // Capture keeps the drag alive past the book's edge. The spec has it throw
+      // when the pointer is already gone, which must not break the gesture.
+      try {
+        e.currentTarget.setPointerCapture(e.pointerId)
+      } catch {
+        // Continue without capture; the drag still tracks pointermove.
+      }
+    },
+    [cursor, isDouble, maxCursor, pages.length, sheetCount],
+  )
+
+  const onPointerMove = useCallback(
+    (e: React.PointerEvent) => {
+      const g = gesture.current
+      if (!g || g.pointerId !== e.pointerId) return
+      const dx = e.clientX - g.startX
+      // Ignore tiny movements so a tap still reaches the page-edge zones.
+      if (!g.active && Math.abs(dx) < DRAG_SLOP_PX) return
+      g.active = true
+
+      const now = performance.now()
+      const dt = Math.max(1, now - g.lastT)
+      g.velocity = (e.clientX - g.lastX) / dt
+      g.lastX = e.clientX
+      g.lastT = now
+
+      setTurn({
+        sheet: g.sheet,
+        direction: g.direction,
+        progress: turnProgress(dx, pageWidthPx, g.direction),
+      })
+    },
+    [pageWidthPx],
+  )
+
+  const onPointerUp = useCallback(
+    (e: React.PointerEvent) => {
+      const g = gesture.current
+      if (!g || g.pointerId !== e.pointerId) return
+      gesture.current = null
+      if (!g.active) {
+        setTurn(null)
+        return
+      }
+      const progress = turnProgress(e.clientX - g.startX, pageWidthPx, g.direction)
+      if (shouldCommitTurn(progress, g.velocity, pageWidthPx, g.direction)) {
+        setCursor((c) =>
+          Math.max(0, Math.min(c + (g.direction === 'forward' ? 1 : -1), maxCursor)),
+        )
+      }
+      // Either way the sheet animates from where it was released.
+      setTurn(null)
+    },
+    [maxCursor, pageWidthPx],
+  )
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -61,6 +173,10 @@ export function Reader({ doc, onClose }: { doc: FlipDoc; onClose?: () => void })
       <div className="reader-stage" ref={stageRef}>
         <div
           className="reader-book"
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
           style={{
             width: bookWidth,
             height: settings.height,
@@ -71,6 +187,8 @@ export function Reader({ doc, onClose }: { doc: FlipDoc; onClose?: () => void })
           {isDouble
             ? Array.from({ length: sheetCount }, (_, k) => {
                 const flipped = k < cursor
+                const drag = turn?.sheet === k ? turn : null
+                const angle = drag ? turnAngle(drag.progress, drag.direction) : null
                 return (
                   <div
                     key={pages[2 * k].id}
@@ -78,8 +196,15 @@ export function Reader({ doc, onClose }: { doc: FlipDoc; onClose?: () => void })
                     style={{
                       width: settings.width,
                       height: settings.height,
-                      zIndex: flipped ? k : sheetCount - k,
-                      transitionDuration: `${settings.flipDurationMs}ms`,
+                      // A sheet under the finger is lifted above the stack.
+                      zIndex: drag ? sheetCount + 1 : flipped ? k : sheetCount - k,
+                      transitionDuration: drag ? '0ms' : `${settings.flipDurationMs}ms`,
+                      ...(drag && angle !== null
+                        ? {
+                            transform: `rotateY(${angle}deg)`,
+                            filter: `drop-shadow(0 0 ${40 * turnShadow(drag.progress)}px rgba(0,0,0,.5))`,
+                          }
+                        : {}),
                     }}
                   >
                     <div className="reader-face front">
@@ -107,7 +232,12 @@ export function Reader({ doc, onClose }: { doc: FlipDoc; onClose?: () => void })
                   </div>
                 )
               })
-            : pages.map((page, i) => (
+            : pages.map((page, i) => {
+                const drag = turn?.sheet === i ? turn : null
+                const shift = drag
+                  ? (drag.direction === 'forward' ? -drag.progress : drag.progress) * 100
+                  : null
+                return (
                 <div
                   key={page.id}
                   className="reader-single"
@@ -115,14 +245,18 @@ export function Reader({ doc, onClose }: { doc: FlipDoc; onClose?: () => void })
                   style={{
                     width: settings.width,
                     height: settings.height,
-                    zIndex: i === cursor ? 2 : 1,
-                    transitionDuration: `${settings.flipDurationMs}ms`,
+                    zIndex: drag ? 3 : i === cursor ? 2 : 1,
+                    transitionDuration: drag ? '0ms' : `${settings.flipDurationMs}ms`,
+                    ...(shift !== null
+                      ? { transform: `translateX(${shift}%)`, opacity: 1 }
+                      : {}),
                   }}
                 >
                   <PageView page={page} settings={settings} resolve={resolve} animate />
                   {settings.showPageNumbers && <span className="reader-no">{i + 1}</span>}
                 </div>
-              ))}
+                )
+              })}
         </div>
 
         <button className="reader-zone prev" onClick={() => go(-1)} aria-label="Previous page" />

@@ -211,7 +211,86 @@ await page.waitForSelector('.reader-book')
 await page.click('.reader-bar button:has-text("Next")')
 await page.waitForTimeout(900)
 check('reader turns a page', (await page.locator('.reader-sheet.flipped').count()) >= 1)
+
+// --- drag-to-turn -----------------------------------------------------------
+console.log('\nDrag to turn')
+await page.click('.reader-bar button:has-text("⏮")')
+await page.waitForTimeout(900)
+const readerBook = await page.locator('.reader-book').boundingBox()
+const halfPage = readerBook.width / 2
+const midY = readerBook.y + readerBook.height / 2
+const rightPageX = readerBook.x + readerBook.width * 0.75
+const leftPageX = readerBook.x + readerBook.width * 0.25
+
+// A short drag lifts the sheet, then springs back on release.
+await page.mouse.move(rightPageX, midY)
+await page.mouse.down()
+await page.mouse.move(rightPageX - halfPage * 0.12, midY, { steps: 10 })
+const midDrag = await page.evaluate(
+  () => getComputedStyle(document.querySelector('.reader-sheet')).transform,
+)
+check('the sheet follows the pointer mid-drag',
+  Boolean(midDrag && midDrag !== 'none' && midDrag !== 'matrix(1, 0, 0, 1, 0, 0)'))
+await page.mouse.up()
+await page.waitForTimeout(900)
+check('a short drag springs back instead of turning',
+  (await page.locator('.reader-sheet.flipped').count()) === 0)
+
+// Past the commit ratio the turn completes.
+await page.mouse.move(rightPageX, midY)
+await page.mouse.down()
+await page.mouse.move(rightPageX - halfPage * 0.6, midY, { steps: 14 })
+await page.mouse.up()
+await page.waitForTimeout(1000)
+check('a long drag completes the turn',
+  (await page.locator('.reader-sheet.flipped').count()) === 1)
+
+// Dragging the left-hand page goes back.
+await page.mouse.move(leftPageX, midY)
+await page.mouse.down()
+await page.mouse.move(leftPageX + halfPage * 0.6, midY, { steps: 14 })
+await page.mouse.up()
+await page.waitForTimeout(1000)
+check('dragging the left page turns back',
+  (await page.locator('.reader-sheet.flipped').count()) === 0)
+
+// Drag slop must leave taps working.
+await page.click('.reader-zone.next')
+await page.waitForTimeout(900)
+check('a tap on the page edge still turns the page',
+  (await page.locator('.reader-sheet.flipped').count()) === 1)
 await page.click('button:has-text("Close preview")')
+
+// --- pinch to zoom ----------------------------------------------------------
+console.log('\nTouch gestures')
+const zoomBefore = parseInt(await page.locator('.zoom-badge span').textContent(), 10)
+const canvasBox = await page.locator('.canvas-viewport').boundingBox()
+await page.evaluate(([cx, cy]) => {
+  const el = document.elementFromPoint(cx, cy)
+  const send = (type, points) => {
+    for (const pt of points) {
+      el.dispatchEvent(new PointerEvent(type, {
+        pointerId: pt.id, pointerType: 'touch', isPrimary: pt.id === 1,
+        clientX: pt.x, clientY: pt.y, bubbles: true, cancelable: true, button: 0,
+      }))
+    }
+  }
+  send('pointerdown', [{ id: 1, x: cx - 60, y: cy }, { id: 2, x: cx + 60, y: cy }])
+  send('pointermove', [{ id: 1, x: cx - 160, y: cy }, { id: 2, x: cx + 160, y: cy }])
+  send('pointerup', [{ id: 1, x: cx - 160, y: cy }, { id: 2, x: cx + 160, y: cy }])
+}, [canvasBox.x + canvasBox.width / 2, canvasBox.y + canvasBox.height / 2])
+await page.waitForTimeout(300)
+const zoomAfter = parseInt(await page.locator('.zoom-badge span').textContent(), 10)
+check('two fingers spreading zooms the canvas in', zoomAfter > zoomBefore,
+  `${zoomBefore}% -> ${zoomAfter}%`)
+
+// Leave the canvas where it started: the drop-position checks below measure the
+// page on screen, and a zoomed-in page pushes their target off the viewport.
+for (let i = 0; i < 30; i++) {
+  const now = parseInt(await page.locator('.zoom-badge span').textContent(), 10)
+  if (now <= zoomBefore) break
+  await page.click('.zoom-badge button[title="Zoom out"]')
+}
 
 // --- themes ----------------------------------------------------------------
 console.log('\nThemes')
@@ -402,6 +481,33 @@ check('offline page turn', (await op.locator('.fb-sheet.flipped').count()) >= 1)
 await op.click('.fb-bar button:has-text("Pages")')
 await op.waitForTimeout(400)
 check('offline thumbnail strip', (await op.locator('.fb-thumbs.open .fb-thumb').count()) > 0)
+
+// The control bar must stay reachable while the thumbnail strip is open.
+check('the open thumbnail strip does not bury the controls', await op.evaluate(() => {
+  const bar = document.querySelector('.fb-bar').getBoundingClientRect()
+  const strip = document.querySelector('.fb-thumbs').getBoundingClientRect()
+  return bar.bottom <= strip.top + 1
+}))
+
+// A real touch drag must turn the page in the exported book too.
+await op.click('.fb-bar button:has-text("Pages")')
+await op.click('.fb-bar button:has-text("⏮")')
+await op.waitForTimeout(900)
+const offBook = await op.locator('.fb-book').boundingBox()
+await op.evaluate(([x, y, w]) => {
+  const el = document.querySelector('.fb-book')
+  const send = (type, cx) => el.dispatchEvent(new PointerEvent(type, {
+    pointerId: 7, pointerType: 'touch', isPrimary: true,
+    clientX: cx, clientY: y, bubbles: true, cancelable: true, button: 0,
+  }))
+  send('pointerdown', x)
+  send('pointermove', x - w * 0.2)
+  send('pointermove', x - w * 0.7)
+  send('pointerup', x - w * 0.7)
+}, [offBook.x + offBook.width * 0.75, offBook.y + offBook.height / 2, offBook.width / 2])
+await op.waitForTimeout(1100)
+check('a touch drag turns the page in the exported book',
+  (await op.locator('.fb-sheet.flipped').count()) >= 1)
 
 check('no errors with all network blocked', offlineErrors.length === 0, offlineErrors.join(' | '))
 await offline.close()

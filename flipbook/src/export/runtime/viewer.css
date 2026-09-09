@@ -26,6 +26,9 @@ html, body {
    "safe" alignment for oversized flex/grid items — which pins them to the
    start edge. Centring it explicitly keeps the scaled book in the middle. */
 .fb-book {
+  /* The book handles its own drag gestures, so the browser must not claim them. */
+  touch-action: none;
+  cursor: grab;
   position: absolute;
   top: 50%;
   left: 50%;
@@ -46,6 +49,7 @@ html, body {
   will-change: transform;
 }
 .fb-sheet.flipped { transform: rotateY(-180deg); }
+.fb-book:active { cursor: grabbing; }
 .fb-face {
   position: absolute;
   top: 0;
@@ -93,6 +97,7 @@ html, body {
   left: 50%;
   bottom: 18px;
   transform: translateX(-50%);
+  transition: transform 0.28s ease;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -178,6 +183,9 @@ html, body {
   z-index: 25;
 }
 .fb-thumbs.open { transform: translateY(0); }
+/* The strip covers the whole bottom edge, so lift the controls clear of it —
+   otherwise the button that opened it is buried and cannot close it again. */
+#fb-app.thumbs-open .fb-bar { transform: translateX(-50%) translateY(-152px); }
 .fb-thumb {
   flex: 0 0 auto;
   height: 100%;

@@ -50,7 +50,7 @@
 
   window.addEventListener('resize', layout)
   window.addEventListener('keydown', onKey)
-  bindSwipe()
+  bindDragToTurn()
 
   // -----------------------------------------------------------------------
 
@@ -193,32 +193,145 @@
     }
   }
 
-  function bindSwipe() {
-    var startX = 0
-    var startY = 0
-    var tracking = false
-    stage.addEventListener(
-      'touchstart',
-      function (e) {
-        if (e.touches.length !== 1) return
-        tracking = true
-        startX = e.touches[0].clientX
-        startY = e.touches[0].clientY
-      },
-      { passive: true },
-    )
-    stage.addEventListener(
-      'touchend',
-      function (e) {
-        if (!tracking) return
-        tracking = false
-        var t = e.changedTouches[0]
-        var dx = t.clientX - startX
-        var dy = t.clientY - startY
-        if (Math.abs(dx) > 55 && Math.abs(dx) > Math.abs(dy)) go(dx < 0 ? 1 : -1)
-      },
-      { passive: true },
-    )
+  /**
+   * Drag-to-turn.
+   *
+   * The sheet follows the pointer instead of waiting for a flick to end, and on
+   * release either completes the turn or springs back. This mirrors
+   * `src/lib/pageTurn.ts` in the editor — keep the two in step so an exported
+   * book reads exactly like the preview.
+   */
+  var DRAG_SLOP_PX = 6
+  var TURN_COMMIT_RATIO = 0.35
+  var TURN_FLICK_VELOCITY = 0.5
+
+  function turnProgress(dx, pageWidth, direction) {
+    if (pageWidth <= 0) return 0
+    var travelled = direction === 'forward' ? -dx : dx
+    return Math.max(0, Math.min(1, travelled / pageWidth))
+  }
+
+  function turnAngle(progress, direction) {
+    return direction === 'forward' ? -180 * progress : -180 * (1 - progress)
+  }
+
+  function shouldCommit(progress, velocity, pageWidth, direction) {
+    if (progress >= TURN_COMMIT_RATIO) return true
+    if (pageWidth <= 0) return false
+    var towards = direction === 'forward' ? -velocity : velocity
+    return (towards * 1000) / pageWidth >= TURN_FLICK_VELOCITY
+  }
+
+  function turnShadow(progress) {
+    return Math.sin(Math.PI * Math.min(1, Math.max(0, progress))) * 0.35
+  }
+
+  /** On-screen width of one page, which changes with the fit-to-window scale. */
+  function pageWidthPx() {
+    return book.getBoundingClientRect().width / (isDouble ? 2 : 1)
+  }
+
+  function bindDragToTurn() {
+    var g = null
+
+    book.addEventListener('pointerdown', function (e) {
+      if (busy) return
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      var rect = book.getBoundingClientRect()
+      var forward = e.clientX - rect.left > rect.width / 2
+      var direction = forward ? 'forward' : 'back'
+      // Only start a drag when the turn has somewhere to go.
+      var maxCursor = isDouble ? sheetCount : pageCount - 1
+      var nextCursor = cursor + (forward ? 1 : -1)
+      if (nextCursor < 0 || nextCursor > maxCursor) return
+
+      // In a book it is the sheet being lifted that moves; on single pages the
+      // page under the finger slides.
+      var index = isDouble ? (forward ? cursor : cursor - 1) : cursor
+      if (index < 0 || index >= (isDouble ? sheetCount : pageCount)) return
+
+      g = {
+        id: e.pointerId,
+        startX: e.clientX,
+        lastX: e.clientX,
+        lastT: performance.now(),
+        velocity: 0,
+        direction: direction,
+        index: index,
+        active: false,
+      }
+      // Capture keeps the drag alive past the book's edge. The spec has it throw
+      // when the pointer is already gone, which must not break the gesture.
+      try {
+        book.setPointerCapture(e.pointerId)
+      } catch (err) {
+        // Continue without capture; the drag still tracks pointermove.
+      }
+    })
+
+    book.addEventListener('pointermove', function (e) {
+      if (!g || g.id !== e.pointerId) return
+      var dx = e.clientX - g.startX
+      if (!g.active && Math.abs(dx) < DRAG_SLOP_PX) return
+      g.active = true
+
+      var now = performance.now()
+      var dt = Math.max(1, now - g.lastT)
+      g.velocity = (e.clientX - g.lastX) / dt
+      g.lastX = e.clientX
+      g.lastT = now
+
+      var progress = turnProgress(dx, pageWidthPx(), g.direction)
+      applyDrag(g, progress)
+    })
+
+    function release(e) {
+      if (!g || g.id !== e.pointerId) return
+      var held = g
+      g = null
+      if (!held.active) {
+        clearDrag(held)
+        return
+      }
+      var progress = turnProgress(e.clientX - held.startX, pageWidthPx(), held.direction)
+      var commit = shouldCommit(progress, held.velocity, pageWidthPx(), held.direction)
+      clearDrag(held)
+      if (commit) go(held.direction === 'forward' ? 1 : -1)
+    }
+
+    book.addEventListener('pointerup', release)
+    book.addEventListener('pointercancel', release)
+
+    function target(held) {
+      return isDouble ? sheets[held.index] : singleEls[held.index]
+    }
+
+    function applyDrag(held, progress) {
+      var node = target(held)
+      if (!node) return
+      node.style.transition = 'none'
+      node.style.zIndex = String(sheetCount + pageCount + 1)
+      if (isDouble) {
+        node.style.transform = 'rotateY(' + turnAngle(progress, held.direction) + 'deg)'
+        node.style.filter =
+          'drop-shadow(0 0 ' + 40 * turnShadow(progress) + 'px rgba(0,0,0,.5))'
+      } else {
+        var shift = held.direction === 'forward' ? -progress : progress
+        node.style.transform = 'translateX(' + shift * 100 + '%)'
+        node.style.opacity = '1'
+      }
+    }
+
+    function clearDrag(held) {
+      var node = target(held)
+      if (!node) return
+      node.style.transition = ''
+      node.style.transform = ''
+      node.style.filter = ''
+      node.style.opacity = ''
+      node.style.zIndex = ''
+      render()
+    }
   }
 
   function buildChrome() {
@@ -252,7 +365,8 @@
       render()
     })
     var thumbsBtn = button('Pages', 'Toggle page thumbnails', function () {
-      thumbsEl.classList.toggle('open')
+      // The app class lifts the control bar clear of the open strip.
+      app.classList.toggle('thumbs-open', thumbsEl.classList.toggle('open'))
     })
     var printBtn = button('Print / PDF', 'Print or save as PDF', function () {
       window.print()

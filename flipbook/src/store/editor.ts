@@ -95,7 +95,8 @@ export interface EditorState {
 
   // -- viewport -------------------------------------------------------------
   setTool: (tool: Tool) => void
-  setZoom: (zoom: number, anchor?: { x: number; y: number }) => void
+  /** Anchored zooming lives in the canvas, which knows the viewport geometry. */
+  setZoom: (zoom: number) => void
   setPan: (pan: { x: number; y: number }) => void
   zoomToFit: (viewport: { width: number; height: number }) => void
   toggleGrid: () => void

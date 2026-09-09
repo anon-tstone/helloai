@@ -66,6 +66,9 @@ export function Canvas() {
   const [guides, setGuides] = useState<SnapGuide[]>([])
   const [spaceHeld, setSpaceHeld] = useState(false)
   const [dropActive, setDropActive] = useState(false)
+  /** Live touch points, so a second finger turns the drag into a pinch. */
+  const pointers = useRef(new Map<number, Point>())
+  const pinch = useRef<{ distance: number; zoom: number; midpoint: Point; pan: Point } | null>(null)
 
   const page = doc.pages[pageIndex]
   const resolve = useMemo(() => makeResolver(doc), [doc])
@@ -74,6 +77,34 @@ export function Canvas() {
     [page, selection],
   )
   const selectionBounds = useMemo(() => boundsOf(selected), [selected])
+
+  /**
+   * Zoom while keeping whatever is under `screenPoint` in place.
+   *
+   * The stage is `translate(pan) scale(zoom)` about its centre, so holding a
+   * point fixed means moving the pan by how much that point would drift.
+   */
+  const zoomAround = useCallback((screenPoint: Point, nextZoom: number) => {
+    const viewport = viewportRef.current
+    const store = useEditor.getState()
+    const clamped = Math.max(0.05, Math.min(5, nextZoom))
+    if (!viewport) {
+      store.setZoom(clamped)
+      return
+    }
+    const rect = viewport.getBoundingClientRect()
+    const centre = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
+    const offset = {
+      x: screenPoint.x - centre.x - store.pan.x,
+      y: screenPoint.y - centre.y - store.pan.y,
+    }
+    const ratio = clamped / store.zoom
+    store.setPan({
+      x: store.pan.x + offset.x * (1 - ratio),
+      y: store.pan.y + offset.y * (1 - ratio),
+    })
+    store.setZoom(clamped)
+  }, [])
 
   /** Convert a pointer event to document coordinates. */
   const toDoc = useCallback((e: { clientX: number; clientY: number }): Point => {
@@ -119,14 +150,14 @@ export function Canvas() {
       const store = useEditor.getState()
       if (e.ctrlKey || e.metaKey) {
         const factor = Math.exp(-e.deltaY / 300)
-        store.setZoom(store.zoom * factor)
+        zoomAround({ x: e.clientX, y: e.clientY }, store.zoom * factor)
       } else {
         store.setPan({ x: store.pan.x - e.deltaX, y: store.pan.y - e.deltaY })
       }
     }
     el.addEventListener('wheel', onWheel, { passive: false })
     return () => el.removeEventListener('wheel', onWheel)
-  }, [])
+  }, [zoomAround])
 
   if (!page) return <div className="canvas-viewport" ref={viewportRef} />
 
@@ -173,9 +204,31 @@ export function Canvas() {
   }
 
   const handlePointerDown = (e: React.PointerEvent) => {
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+
+    // A second finger starts a pinch: abandon whatever drag was in progress so
+    // the gesture zooms and pans instead of moving an element.
+    if (pointers.current.size === 2) {
+      const [a, b] = [...pointers.current.values()]
+      pinch.current = {
+        distance: Math.hypot(b.x - a.x, b.y - a.y),
+        zoom: useEditor.getState().zoom,
+        midpoint: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+        pan: useEditor.getState().pan,
+      }
+      setDrag({ kind: 'none' })
+      setGuides([])
+      return
+    }
+    if (pointers.current.size > 2) return
+
     if (e.button === 1 || spaceHeld || tool === 'hand') {
       setDrag({ kind: 'pan', start: { x: e.clientX, y: e.clientY }, startPan: pan })
-      ;(e.target as Element).setPointerCapture?.(e.pointerId)
+      try {
+        ;(e.target as Element).setPointerCapture?.(e.pointerId)
+      } catch {
+        // Capture is an optimisation here; panning works without it.
+      }
       return
     }
     if (e.button !== 0) return
@@ -246,6 +299,28 @@ export function Canvas() {
   }
 
   const handlePointerMove = (e: React.PointerEvent) => {
+    if (pointers.current.has(e.pointerId)) {
+      pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    }
+
+    // Pinch: scale by how far the fingers spread, and pan by how far the pair
+    // travelled, so the canvas tracks the hand.
+    const gesture = pinch.current
+    if (gesture && pointers.current.size >= 2) {
+      const [a, b] = [...pointers.current.values()]
+      const distance = Math.hypot(b.x - a.x, b.y - a.y)
+      if (gesture.distance > 0) {
+        const midpoint = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
+        const store = useEditor.getState()
+        store.setPan({
+          x: gesture.pan.x + (midpoint.x - gesture.midpoint.x),
+          y: gesture.pan.y + (midpoint.y - gesture.midpoint.y),
+        })
+        zoomAround(midpoint, gesture.zoom * (distance / gesture.distance))
+      }
+      return
+    }
+
     if (drag.kind === 'none') return
     const store = useEditor.getState()
 
@@ -370,7 +445,12 @@ export function Canvas() {
     }
   }
 
-  const handlePointerUp = () => {
+  const handlePointerUp = (e?: React.PointerEvent) => {
+    if (e) pointers.current.delete(e.pointerId)
+    if (pointers.current.size < 2) pinch.current = null
+    // Lifting one finger of a pinch must not be read as finishing a drag.
+    if (pointers.current.size >= 1 && drag.kind === 'none') return
+
     const store = useEditor.getState()
     if (drag.kind === 'marquee') {
       const box = normalizeRect(drag.start, drag.current)
