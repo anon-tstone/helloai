@@ -312,14 +312,17 @@ function ShapeInspector({ el, ids }: { el: ShapeElement; ids: string[] }) {
 
   return (
     <Group title="Shape">
-      <label className="field">
-        <span>Fill</span>
-        <input
-          type="color"
-          value={el.fill.kind === 'solid' ? toHex(el.fill.color) : '#6c5ce7'}
-          onChange={(e) => patch({ fill: { kind: 'solid', color: e.target.value } })}
-        />
-      </label>
+      {/* The solid picker is meaningless while a gradient is active. */}
+      {el.fill.kind !== 'linear' && (
+        <label className="field">
+          <span>Fill</span>
+          <input
+            type="color"
+            value={el.fill.kind === 'solid' ? toHex(el.fill.color) : '#6c5ce7'}
+            onChange={(e) => patch({ fill: { kind: 'solid', color: e.target.value } })}
+          />
+        </label>
+      )}
       <label className="field">
         <span>Gradient</span>
         <input
@@ -328,8 +331,14 @@ function ShapeInspector({ el, ids }: { el: ShapeElement; ids: string[] }) {
           onChange={(e) =>
             patch({
               fill: e.target.checked
-                ? { kind: 'linear', from: '#8e7bff', to: '#37306b', angle: 140 }
-                : { kind: 'solid', color: '#6c5ce7' },
+                ? {
+                    kind: 'linear',
+                    // Start the gradient from the colour already in use.
+                    from: el.fill.kind === 'solid' ? el.fill.color : '#8e7bff',
+                    to: '#37306b',
+                    angle: 140,
+                  }
+                : { kind: 'solid', color: el.fill.kind === 'linear' ? el.fill.from : '#6c5ce7' },
             })
           }
         />
