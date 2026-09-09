@@ -1,0 +1,16 @@
+{
+  "name": "flipbook-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Packages an exported flipbook into a double-click desktop app",
+  "main": "main.js",
+  "scripts": {
+    "package": "node package.js"
+  },
+  "devDependencies": {
+    "@electron/packager": "^18.3.6",
+    "electron": "^33.0.0",
+    "jszip": "^3.10.1"
+  },
+  "type": "module"
+}

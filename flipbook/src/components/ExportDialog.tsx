@@ -122,9 +122,17 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
         )}
         {error && <p className="hint warn">{error}</p>}
         {result && (
-          <p className="hint ok">
-            Built {result.filename} ({formatBytes(result.bytes)}) — check your downloads.
-          </p>
+          <>
+            <p className="hint ok">
+              Built {result.filename} ({formatBytes(result.bytes)}) — check your downloads.
+            </p>
+            <p className="hint">
+              Want a double-click desktop app instead? Run{' '}
+              <code>npm run package:desktop -- {result.filename} --platform win32</code>{' '}
+              in the project to wrap this build as a Windows .exe (see
+              desktop/README.md).
+            </p>
+          </>
         )}
 
         <footer>

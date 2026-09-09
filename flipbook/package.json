@@ -13,7 +13,8 @@
     "db:local": "wrangler d1 execute flipbook-studio --local --file=./schema.sql",
     "db:remote": "wrangler d1 execute flipbook-studio --remote --file=./schema.sql",
     "deploy": "npm run build && wrangler deploy",
-    "test:e2e": "node tests/e2e.mjs"
+    "test:e2e": "node tests/e2e.mjs",
+    "package:desktop": "node desktop/package.js"
   },
   "dependencies": {
     "hono": "^4.6.14",

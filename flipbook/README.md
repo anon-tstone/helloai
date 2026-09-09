@@ -60,6 +60,8 @@ server and no internet.
 **Offline build**
 - **ZIP** — `index.html` + `assets/`, opens by double-click from a USB stick
 - **Single HTML file** — everything inlined as data URLs, easy to email
+- **Desktop app** — one command wraps an export as a Windows `.exe`, a macOS
+  `.app` or a Linux binary; see [desktop/README.md](desktop/README.md)
 - Optional font embedding, so text renders identically with no network
 - Includes a Print / PDF button that paginates one page per sheet
 - Verified: the export renders, turns pages and loads its images with **all
@@ -94,6 +96,7 @@ flipbook/
 │       ├── html.ts         static HTML renderer for pages
 │       ├── exportBundle.ts ZIP / single-file offline builds
 │       └── runtime/        the dependency-free offline viewer (JS + CSS)
+├── desktop/                Electron shell + packager for .exe / .app builds
 ├── worker/index.ts         Cloudflare Worker: API + static asset serving
 ├── schema.sql              D1 schema
 └── wrangler.toml           bindings for D1, R2, KV and static assets
@@ -175,3 +178,7 @@ Set `CHROME_PATH` to reuse a Chromium that is already on the machine, and
   fetched the export falls back to a system stack rather than failing.
 - Text elements hold plain text with one style per element — no rich-text runs
   or per-character formatting inside a single text box.
+- **A desktop build is ~250 MB**, because Electron bundles Chromium. The ZIP and
+  single-file exports stay in the kilobytes. Cross-building a Windows `.exe`
+  from macOS or Linux works; embedding a *custom* Windows icon there also needs
+  `wine`.
