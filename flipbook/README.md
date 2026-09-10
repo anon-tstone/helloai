@@ -128,6 +128,9 @@ npx wrangler dev --local  # http://localhost:8787
 For a fast edit loop run `npm run dev` (Vite, port 5173) alongside
 `npm run dev:worker` (API, port 8787); Vite proxies `/api` across.
 
+On Windows, [docs/WINDOWS.md](docs/WINDOWS.md) walks through the same steps
+from installing Node to building a desktop `.exe`.
+
 Deployment — including the resources already provisioned — is documented in
 [docs/DEPLOY.md](docs/DEPLOY.md).
 
